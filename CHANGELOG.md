@@ -4,6 +4,23 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-11-03
+
+### Security
+
+- Your question, the context sent with it and the answers no longer appear in command
+  arguments, which other users on the computer can list. The agent gets the question on
+  stdin, copying goes to `wl-copy` on stdin, the opencode session is titled Pawmpt, and a
+  notification only says that an answer is ready.
+- Let it act off is now enforced: opencode gets permissions that only let it read, search
+  and look things up, so its Build agent can no longer edit files or run commands
+  without asking.
+
+### Changed
+
+- The presets for your own command send the question on stdin (`claude -p`, `gemini`,
+  `codex exec -`); the old presets are read the new way.
+
 ## [1.0.0] - 2026-11-03
 
 ### Added
@@ -26,4 +43,5 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.0.1]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/qempexe/omarchy-pawmpt/releases/tag/v1.0.0

@@ -821,9 +821,9 @@ Scope {
                             if (s.busy) out.push({ label: "Stop", act: () => s.stop() })
                             else {
                                 out.push({ label: "Reply", act: () => { root.promptOpen = true } })
-                                if (s.reply) out.push({ label: "Copy", act: () => Quickshell.execDetached(["wl-copy", "--", s.reply]) })
+                                if (s.reply) out.push({ label: "Copy", act: () => s.copyText(s.reply) })
                                 const code = s.lastCode()
-                                if (code) out.push({ label: "Copy code", act: () => Quickshell.execDetached(["wl-copy", "--", code]) })
+                                if (code) out.push({ label: "Copy code", act: () => s.copyText(code) })
                                 if (s.lastQuestion) out.push({ label: "Retry", act: () => s.retry() })
                                 // carry on the chat in one click (only when the conversation is remembered)
                                 if (s.reply && s.replyOk && root.cfg.showFollowUps !== false && s.conversationKept)

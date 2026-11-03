@@ -1125,10 +1125,11 @@ Item {
         // the other agents have no chat of their own: keep the exchange to remind them of it
         if (answered && settings.remember && (settings.agent || "opencode") !== "opencode" && settings.memoryTurns > 0 && lastBody !== "")
             history = history.concat([{ q: lastBody, a: String(text) }]).slice(-10)
-        if (answered && settings.copyAnswer) Quickshell.execDetached(["wl-copy", "--", String(text)])
+        if (answered && settings.copyAnswer) copyText(String(text))
+        // only a plain line: the answer itself would sit in notify-send's arguments and in the notification history
         if (settings.notifyDone && Date.now() - askedAt >= (settings.notifyAfter || 0) * 1000)
             Quickshell.execDetached(["notify-send", "-a", "Pawmpt", ok ? "Answer ready" : "Pawmpt ran into a problem",
-                String(text || "").slice(0, 200).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")])
+                ok ? "Click your pal to read it." : "Your pal has the details."])
     }
 
     // ---- reading the answer as it comes -------------------------------------------------------
@@ -1169,6 +1170,25 @@ Item {
             errText = String((er.data && er.data.message) || er.message || er.name || "error")
         }
     }
+    // Copying: wl-copy reads the text from stdin, so it is never in a command's arguments.
+    property string copyQueue: ""
+    property bool copyQueued: false
+    function copyText(text) {
+        text = String(text || "")
+        if (text === "") return
+        if (copier2.running) { copyQueue = text; copyQueued = true; return }
+        copyInput = text
+        copier2.stdinEnabled = true
+        copier2.running = true
+    }
+    property string copyInput: ""
+    Process {
+        id: copier2
+        command: ["wl-copy"]
+        onStarted: { copier2.write(root.copyInput); root.copyInput = ""; copier2.stdinEnabled = false }
+        onExited: { if (root.copyQueued) { root.copyQueued = false; const t = root.copyQueue; root.copyQueue = ""; Qt.callLater(root.copyText, t) } }
+    }
+
     function clean(t) { return String(t || "").replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "") }
 
     property string agentInput: ""

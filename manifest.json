@@ -1,0 +1,1166 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.qempexe.pawmpt",
+  "name": "Pawmpt",
+  "version": "1.0.0",
+  "author": "qempexe",
+  "license": "MIT",
+  "description": "A little pal that lives on your desktop: pick a character or add your own, dress it in skins, and ask it things through an agent you choose.",
+  "kinds": [
+    "panel",
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "qml/Pal.qml",
+    "service": "qml/Service.qml",
+    "barWidget": "qml/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Pawmpt",
+    "description": "Show, hide and set up your desktop pal.",
+    "category": "Utilities",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "aliases": [
+      "pal",
+      "pet",
+      "mascot",
+      "companion",
+      "assistant",
+      "agent"
+    ],
+    "defaults": {
+      "size": 88,
+      "opacity": 100,
+      "shadow": false,
+      "idle": "breathe",
+      "blink": true,
+      "eyesFollow": true,
+      "sleepAfter": 0,
+      "shuffle": "off",
+      "startHidden": false,
+      "moveMode": "still",
+      "moveSpeed": 60,
+      "areaMargin": 0,
+      "moveRest": true,
+      "restSeconds": 4,
+      "bounceAngle": "diagonal",
+      "bounceChange": "none",
+      "followDistance": 120,
+      "faceMovement": true,
+      "lean": false,
+      "pauseHover": true,
+      "pauseAsking": true,
+      "leftClick": "ask",
+      "rightClick": "menu",
+      "middleClick": "settings",
+      "draggable": true,
+      "rememberPosition": true,
+      "edgeToNextScreen": true,
+      "moveAcross": false,
+      "agent": "opencode",
+      "agentModel": "",
+      "agentCommand": "claude -p {prompt}",
+      "agentMode": "build",
+      "agentVariant": "",
+      "agentAuto": false,
+      "agentPrefix": "",
+      "agentStyle": "normal",
+      "agentLanguage": "",
+      "remember": true,
+      "rememberMinutes": 45,
+      "memoryTurns": 4,
+      "tellWindow": true,
+      "tellSelection": false,
+      "tellClipboard": false,
+      "contextChars": 4000,
+      "workIn": "window",
+      "workFolder": "",
+      "showQuick": true,
+      "quickLabel": "",
+      "quickPrompt": "",
+      "copyAnswer": false,
+      "notifyDone": false,
+      "notifyAfter": 0,
+      "agentTimeout": 300,
+      "agentRetries": 0,
+      "voice": "off",
+      "voiceSend": true,
+      "voiceMaxSeconds": 30,
+      "voiceCommand": "hex",
+      "bubbleWidth": 340,
+      "bubbleFont": 13,
+      "bubbleSeconds": 0,
+      "bubblePlace": "auto",
+      "showActivity": true,
+      "showUsage": true,
+      "showFollowUps": true,
+      "colorMode": "theme",
+      "customBg": "#141414",
+      "customFg": "#e0e0e0",
+      "accentColor": "#d4a35a",
+      "textColor": "auto",
+      "cardStyle": "soft",
+      "density": "comfortable",
+      "cornerRadius": 4,
+      "fontScale": 100,
+      "windowWidth": 560,
+      "windowHeight": 680,
+      "openAs": "panel",
+      "frame": false,
+      "frameGradient": true,
+      "frameColor": "accent",
+      "surfaceTint": 0,
+      "winOpacity": 97,
+      "barShows": "pal",
+      "barLeft": "toggle",
+      "barMiddle": "ask",
+      "barRight": "panel",
+      "palTheme": false,
+      "palBody": "#ff6fa8",
+      "palEye": "#2a1020",
+      "palAccent": "#ffd1e3",
+      "palBody2": "#c4457a",
+      "palOutline": "#2a1020",
+      "palPattern": "#ffffff",
+      "bodyFill": "flat",
+      "pattern": "none",
+      "patternSize": 100,
+      "outlineWidth": 0,
+      "glow": 0,
+      "shine": true,
+      "blush": true,
+      "eyeStyle": "normal",
+      "mouthStyle": "smile",
+      "character": "blob",
+      "skin": "Bubblegum"
+    },
+    "schema": [
+      {
+        "key": "size",
+        "type": "integer",
+        "label": "Size",
+        "min": 40,
+        "max": 260,
+        "step": 4,
+        "defaultValue": 88,
+        "description": "How big the pal is on the desktop, in pixels."
+      },
+      {
+        "key": "opacity",
+        "type": "integer",
+        "label": "Opacity",
+        "min": 30,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 100,
+        "description": "100 is solid."
+      },
+      {
+        "key": "shadow",
+        "type": "boolean",
+        "label": "Shadow",
+        "defaultValue": false,
+        "description": "A soft shadow on the ground under it."
+      },
+      {
+        "key": "idle",
+        "type": "enum",
+        "label": "While idle",
+        "options": [
+          "breathe",
+          "bob",
+          "sway",
+          "hop",
+          "still",
+          "wobble",
+          "twirl",
+          "shiver",
+          "float",
+          "dance",
+          "jumpy",
+          "heartbeat",
+          "tilt",
+          "flip",
+          "boing",
+          "drowsy"
+        ],
+        "defaultValue": "breathe",
+        "description": "What it does when you leave it alone. Wobble squashes and stretches like jelly, Twirl turns like a coin, Shiver trembles, Float drifts slowly, Dance rocks side to side, Jumpy leaps now and then, Heartbeat pulses twice and rests, Tilt cocks its head from side to side, Flip does a somersault now and then, Boing bounces and squashes like a rubber ball, Drowsy nods off slowly and jerks awake."
+      },
+      {
+        "key": "blink",
+        "type": "boolean",
+        "label": "Blink",
+        "defaultValue": true,
+        "description": "Now and then."
+      },
+      {
+        "key": "eyesFollow",
+        "type": "boolean",
+        "label": "Eyes follow the mouse",
+        "defaultValue": true,
+        "description": "It looks at your pointer."
+      },
+      {
+        "key": "sleepAfter",
+        "type": "integer",
+        "label": "Fall asleep after",
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "defaultValue": 0,
+        "description": "Minutes of quiet before it dozes off. Come near it, click it or ask it something to wake it. 0 never."
+      },
+      {
+        "key": "shuffle",
+        "type": "enum",
+        "label": "Surprise me",
+        "options": [
+          "off",
+          "start",
+          "hour",
+          "day"
+        ],
+        "defaultValue": "off",
+        "description": "Picks a random character and skin by itself."
+      },
+      {
+        "key": "startHidden",
+        "type": "boolean",
+        "label": "Start hidden",
+        "defaultValue": false,
+        "description": "Show it from the bar button or Ask."
+      },
+      {
+        "key": "moveMode",
+        "type": "enum",
+        "label": "Moves",
+        "options": [
+          "still",
+          "stroll",
+          "random",
+          "bounce",
+          "horizontal",
+          "vertical",
+          "follow",
+          "circle",
+          "wave",
+          "patrol",
+          "dart",
+          "flee",
+          "spiral",
+          "figure8",
+          "orbitmouse",
+          "leap"
+        ],
+        "defaultValue": "still",
+        "description": "Bounces goes diagonally and turns at the screen edges, like the DVD logo. Roams picks a random spot on the screen again and again. Circles goes round and round. Rides a wave travels left and right along a sine curve. Patrols walks the edges of the screen. Darts dashes to a spot, pauses, and dashes again. Runs from the mouse keeps away from your pointer. Spirals circles with a radius that grows and shrinks. Figure eight traces an eight. Orbits the mouse circles your pointer. Leaps about jumps in arcs from spot to spot."
+      },
+      {
+        "key": "moveSpeed",
+        "type": "integer",
+        "label": "Speed",
+        "min": 10,
+        "max": 600,
+        "step": 10,
+        "defaultValue": 60,
+        "description": "Pixels per second."
+      },
+      {
+        "key": "areaMargin",
+        "type": "integer",
+        "label": "Keep away from the edges",
+        "min": 0,
+        "max": 300,
+        "step": 10,
+        "defaultValue": 0,
+        "description": "How far the screen's edges are kept free. Useful for a bar or a dock."
+      },
+      {
+        "key": "moveRest",
+        "type": "boolean",
+        "label": "Rest now and then",
+        "defaultValue": true,
+        "description": "Stops for a moment every time it arrives."
+      },
+      {
+        "key": "restSeconds",
+        "type": "integer",
+        "label": "Rest for about",
+        "min": 1,
+        "max": 30,
+        "step": 1,
+        "defaultValue": 4,
+        "description": "Seconds."
+      },
+      {
+        "key": "bounceAngle",
+        "type": "enum",
+        "label": "Starts going",
+        "options": [
+          "diagonal",
+          "random"
+        ],
+        "defaultValue": "diagonal",
+        "description": "The direction it sets off in."
+      },
+      {
+        "key": "bounceChange",
+        "type": "enum",
+        "label": "On every bounce",
+        "options": [
+          "none",
+          "skin",
+          "character"
+        ],
+        "defaultValue": "none",
+        "description": "Changes it every time it hits an edge. A corner makes it hop."
+      },
+      {
+        "key": "followDistance",
+        "type": "integer",
+        "label": "Keeps this far away",
+        "min": 20,
+        "max": 500,
+        "step": 10,
+        "defaultValue": 120,
+        "description": "Pixels between it and the pointer. When it follows, it stops this far away. When it runs from the mouse, it starts running once you are closer than this. When it orbits the mouse, it is the radius of the circle."
+      },
+      {
+        "key": "faceMovement",
+        "type": "boolean",
+        "label": "Face where it goes",
+        "defaultValue": true,
+        "description": "Turns around when it changes direction."
+      },
+      {
+        "key": "lean",
+        "type": "boolean",
+        "label": "Lean into the move",
+        "defaultValue": false,
+        "description": "Tilts a little the way it is going."
+      },
+      {
+        "key": "pauseHover",
+        "type": "boolean",
+        "label": "Stop when the mouse is on it",
+        "defaultValue": true,
+        "description": "So you can click it."
+      },
+      {
+        "key": "pauseAsking",
+        "type": "boolean",
+        "label": "Stop while the agent works",
+        "defaultValue": true,
+        "description": "And while you type a question."
+      },
+      {
+        "key": "leftClick",
+        "type": "enum",
+        "label": "Left click",
+        "options": [
+          "ask",
+          "voice",
+          "menu",
+          "settings",
+          "characters",
+          "wardrobe",
+          "newChat",
+          "nextCharacter",
+          "nextSkin",
+          "surprise",
+          "hide",
+          "none"
+        ],
+        "defaultValue": "ask"
+      },
+      {
+        "key": "rightClick",
+        "type": "enum",
+        "label": "Right click",
+        "options": [
+          "ask",
+          "voice",
+          "menu",
+          "settings",
+          "characters",
+          "wardrobe",
+          "newChat",
+          "nextCharacter",
+          "nextSkin",
+          "surprise",
+          "hide",
+          "none"
+        ],
+        "defaultValue": "menu"
+      },
+      {
+        "key": "middleClick",
+        "type": "enum",
+        "label": "Middle click",
+        "options": [
+          "ask",
+          "voice",
+          "menu",
+          "settings",
+          "characters",
+          "wardrobe",
+          "newChat",
+          "nextCharacter",
+          "nextSkin",
+          "surprise",
+          "hide",
+          "none"
+        ],
+        "defaultValue": "settings"
+      },
+      {
+        "key": "draggable",
+        "type": "boolean",
+        "label": "Drag it around",
+        "defaultValue": true,
+        "description": "Hold the left button on it and move."
+      },
+      {
+        "key": "rememberPosition",
+        "type": "boolean",
+        "label": "Remember where it was",
+        "defaultValue": true,
+        "description": "It comes back to the same spot after a restart."
+      },
+      {
+        "key": "edgeToNextScreen",
+        "type": "boolean",
+        "label": "Drop it at the side to change screen",
+        "defaultValue": true,
+        "description": "With several screens: let go at a screen's side edge to send it to the next one."
+      },
+      {
+        "key": "moveAcross",
+        "type": "boolean",
+        "label": "Walk onto other monitors",
+        "defaultValue": false,
+        "description": "With several monitors: when it reaches the side of a screen it goes on to the monitor next to it, and comes back the same way. Bounces, Left and right, Rides a wave carry on across; Strolls, Roams and Darts about now and then head for the next monitor. On the outer sides it turns round as usual. Monitors are taken in the order they sit from left to right."
+      },
+      {
+        "key": "agent",
+        "type": "enum",
+        "label": "Agent",
+        "options": [
+          "opencode",
+          "ollama",
+          "custom"
+        ],
+        "defaultValue": "opencode",
+        "description": "Who answers. opencode and Ollama have to be installed; your command can be anything that prints an answer."
+      },
+      {
+        "key": "agentModel",
+        "type": "string",
+        "label": "Model",
+        "defaultValue": "",
+        "description": "Every model your providers offer. Add a provider with opencode auth login, then Refresh."
+      },
+      {
+        "key": "agentCommand",
+        "type": "string",
+        "label": "Command",
+        "defaultValue": "claude -p {prompt}",
+        "description": "{prompt} is replaced by what you ask; without it your question goes last. It runs without a shell, so no pipes or quotes."
+      },
+      {
+        "key": "agentMode",
+        "type": "enum",
+        "label": "Agent mode",
+        "options": [
+          "build",
+          "plan"
+        ],
+        "defaultValue": "build"
+      },
+      {
+        "key": "agentVariant",
+        "type": "enum",
+        "label": "Thinking effort",
+        "options": [
+          "",
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "defaultValue": "",
+        "description": "Only models that think support this; others ignore it."
+      },
+      {
+        "key": "agentAuto",
+        "type": "boolean",
+        "label": "Let it act",
+        "defaultValue": false,
+        "description": "Runs commands and edits files without asking. Off: anything it needs permission for is turned down, so it can only read and answer."
+      },
+      {
+        "key": "agentPrefix",
+        "type": "string",
+        "label": "Always tell it",
+        "defaultValue": "",
+        "description": "A line put in front of every question, for example: Answer in two sentences."
+      },
+      {
+        "key": "agentStyle",
+        "type": "enum",
+        "label": "Answer style",
+        "options": [
+          "normal",
+          "short",
+          "detailed",
+          "steps",
+          "simple"
+        ],
+        "defaultValue": "normal",
+        "description": "How answers are written. It is added as a line in front of every question, so it works with every agent."
+      },
+      {
+        "key": "agentLanguage",
+        "type": "string",
+        "label": "Answer in",
+        "defaultValue": "",
+        "description": "A language for every answer, whatever language you ask in. Empty answers in the language of the question. Translate then translates into it."
+      },
+      {
+        "key": "remember",
+        "type": "boolean",
+        "label": "Remember the conversation",
+        "defaultValue": true,
+        "description": "Follow-ups continue the same chat until New chat."
+      },
+      {
+        "key": "rememberMinutes",
+        "type": "integer",
+        "label": "Start a new chat after",
+        "min": 5,
+        "max": 480,
+        "step": 5,
+        "defaultValue": 45,
+        "description": "Minutes of quiet."
+      },
+      {
+        "key": "memoryTurns",
+        "type": "integer",
+        "label": "Look back on",
+        "min": 0,
+        "max": 10,
+        "step": 1,
+        "defaultValue": 4,
+        "description": "Ollama and your own command have no chat of their own, so the last few questions and answers are sent along with a follow-up. How many exchanges. 0 sends none."
+      },
+      {
+        "key": "tellWindow",
+        "type": "boolean",
+        "label": "Tell it about the active window",
+        "defaultValue": true,
+        "description": "Adds the window's app, title and folder to your question."
+      },
+      {
+        "key": "tellSelection",
+        "type": "boolean",
+        "label": "Tell it what I have selected",
+        "defaultValue": false,
+        "description": "Adds the text you have selected, in any app, to your question. It is read only at the moment you ask, and only up to the limit below."
+      },
+      {
+        "key": "tellClipboard",
+        "type": "boolean",
+        "label": "Tell it what I copied",
+        "defaultValue": false,
+        "description": "Adds what is in the clipboard, up to the limit below, to your question."
+      },
+      {
+        "key": "contextChars",
+        "type": "integer",
+        "label": "Most text to send",
+        "min": 500,
+        "max": 20000,
+        "step": 500,
+        "defaultValue": 4000,
+        "description": "Characters taken from the selection or the clipboard, for the quick actions too. More costs more tokens."
+      },
+      {
+        "key": "workIn",
+        "type": "enum",
+        "label": "Work in",
+        "options": [
+          "window",
+          "home",
+          "folder"
+        ],
+        "defaultValue": "window",
+        "description": "The active window's folder is where its terminal shell is; other apps fall back to Home."
+      },
+      {
+        "key": "workFolder",
+        "type": "string",
+        "label": "Folder",
+        "defaultValue": "",
+        "description": "For example ~/Projects/my-app"
+      },
+      {
+        "key": "showQuick",
+        "type": "boolean",
+        "label": "Show quick actions",
+        "defaultValue": true,
+        "description": "Explain, Summarize, Fix it, Translate, Reply and Shorter, under the question box. Each one works on the text you have selected, or else on what you copied."
+      },
+      {
+        "key": "quickLabel",
+        "type": "string",
+        "label": "Your own: name",
+        "defaultValue": "",
+        "description": "A seventh button of your own. Its name, up to 16 characters. It needs the prompt below too."
+      },
+      {
+        "key": "quickPrompt",
+        "type": "string",
+        "label": "Your own: what to do",
+        "defaultValue": "",
+        "description": "What the button asks. The selected or copied text is put after it. From a terminal: quick custom."
+      },
+      {
+        "key": "copyAnswer",
+        "type": "boolean",
+        "label": "Copy the answer when it is ready",
+        "defaultValue": false,
+        "description": "Puts the finished answer on the clipboard, ready to paste. It needs wl-copy (the wl-clipboard package)."
+      },
+      {
+        "key": "notifyDone",
+        "type": "boolean",
+        "label": "Notify me when an answer is ready",
+        "defaultValue": false,
+        "description": "A desktop notification when the agent has finished, for the long ones you walk away from."
+      },
+      {
+        "key": "notifyAfter",
+        "type": "integer",
+        "label": "Only if it took longer than",
+        "min": 0,
+        "max": 300,
+        "step": 5,
+        "defaultValue": 0,
+        "description": "Seconds. A quick answer you were already looking at needs no notification. 0 always notifies."
+      },
+      {
+        "key": "agentTimeout",
+        "type": "integer",
+        "label": "Give up after",
+        "min": 30,
+        "max": 1800,
+        "step": 30,
+        "defaultValue": 300,
+        "description": "Seconds."
+      },
+      {
+        "key": "agentRetries",
+        "type": "integer",
+        "label": "Try again when it fails",
+        "min": 0,
+        "max": 3,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "How many more times to ask when the agent stops with an error, for a provider that now and then drops out. A run you stop, a timeout and a missing agent are not tried again. 0 never."
+      },
+      {
+        "key": "voice",
+        "type": "enum",
+        "label": "Ask by voice",
+        "options": [
+          "off",
+          "hex"
+        ],
+        "defaultValue": "off",
+        "description": "Speak your question. Hex (anoma.ly/hex) is local voice dictation: Pawmpt tells it to start and stop recording and sends what you said. Install and set up Hex first, and keep it running. Then use Ask by voice on a click, the mic in the question box, or: omarchy-shell io.github.qempexe.pawmpt voice."
+      },
+      {
+        "key": "voiceSend",
+        "type": "boolean",
+        "label": "Send when I stop speaking",
+        "defaultValue": true,
+        "description": "Off puts what you said in the question box, so you can read and change it before you press Enter."
+      },
+      {
+        "key": "voiceMaxSeconds",
+        "type": "integer",
+        "label": "Stop listening after",
+        "min": 5,
+        "max": 120,
+        "step": 5,
+        "defaultValue": 30,
+        "description": "Seconds. If you forget to stop, it stops and sends for you."
+      },
+      {
+        "key": "voiceCommand",
+        "type": "string",
+        "label": "Hex command",
+        "defaultValue": "hex",
+        "description": "How to run Hex, if it is not on the PATH. ~/.local/bin/hex is looked at when hex is not found."
+      },
+      {
+        "key": "bubbleWidth",
+        "type": "integer",
+        "label": "Width",
+        "min": 200,
+        "max": 700,
+        "step": 10,
+        "defaultValue": 340,
+        "description": "Pixels."
+      },
+      {
+        "key": "bubbleFont",
+        "type": "integer",
+        "label": "Text size",
+        "min": 10,
+        "max": 22,
+        "step": 1,
+        "defaultValue": 13,
+        "description": "Pixels."
+      },
+      {
+        "key": "bubbleSeconds",
+        "type": "integer",
+        "label": "Close after",
+        "min": 0,
+        "max": 60,
+        "step": 5,
+        "defaultValue": 0,
+        "description": "Seconds. 0 keeps the answer until you close it."
+      },
+      {
+        "key": "bubblePlace",
+        "type": "enum",
+        "label": "Opens",
+        "options": [
+          "auto",
+          "above",
+          "below"
+        ],
+        "defaultValue": "auto"
+      },
+      {
+        "key": "showActivity",
+        "type": "boolean",
+        "label": "Show what it is doing",
+        "defaultValue": true,
+        "description": "The steps while it works: › bash: git status"
+      },
+      {
+        "key": "showUsage",
+        "type": "boolean",
+        "label": "Show tokens and folder",
+        "defaultValue": true,
+        "description": "The small line under an answer."
+      },
+      {
+        "key": "showFollowUps",
+        "type": "boolean",
+        "label": "Follow-up buttons",
+        "defaultValue": true,
+        "description": "Go on and Simpler, under an answer, to carry on the chat in one click. They show when the conversation is remembered."
+      },
+      {
+        "key": "colorMode",
+        "type": "enum",
+        "label": "Colors",
+        "options": [
+          "theme",
+          "borders",
+          "custom",
+          "monochrome"
+        ],
+        "defaultValue": "theme",
+        "description": "The colors of this panel and the speech bubble. Follow theme matches your Omarchy theme live. Window borders takes the accent from your theme's window border. Monochrome removes every hue."
+      },
+      {
+        "key": "customBg",
+        "type": "string",
+        "label": "Background",
+        "defaultValue": "#141414",
+        "description": "Choose Background, Text or Accent, then pick a swatch or type a hex."
+      },
+      {
+        "key": "customFg",
+        "type": "string",
+        "label": "Text",
+        "defaultValue": "#e0e0e0",
+        "description": "Choose Background, Text or Accent, then pick a swatch or type a hex."
+      },
+      {
+        "key": "accentColor",
+        "type": "string",
+        "label": "Accent",
+        "defaultValue": "#d4a35a",
+        "description": "Choose Background, Text or Accent, then pick a swatch or type a hex."
+      },
+      {
+        "key": "textColor",
+        "type": "enum",
+        "label": "Text",
+        "options": [
+          "auto",
+          "theme",
+          "custom"
+        ],
+        "defaultValue": "auto",
+        "description": "Always readable keeps your theme's text color and switches to black or white when it would be hard to read."
+      },
+      {
+        "key": "cardStyle",
+        "type": "enum",
+        "label": "Row style",
+        "options": [
+          "soft",
+          "outline",
+          "flat"
+        ],
+        "defaultValue": "soft",
+        "description": "Soft fills the rows lightly, outline draws a border only, flat has neither."
+      },
+      {
+        "key": "density",
+        "type": "enum",
+        "label": "Spacing",
+        "options": [
+          "compact",
+          "comfortable",
+          "spacious"
+        ],
+        "defaultValue": "comfortable",
+        "description": "How much air there is between things."
+      },
+      {
+        "key": "cornerRadius",
+        "type": "integer",
+        "label": "Roundness",
+        "min": 0,
+        "max": 20,
+        "step": 2,
+        "defaultValue": 4,
+        "description": "0 is square, 20 is very round."
+      },
+      {
+        "key": "fontScale",
+        "type": "integer",
+        "label": "Text size",
+        "min": 80,
+        "max": 150,
+        "step": 5,
+        "defaultValue": 100,
+        "description": "1 is normal, 1.25 is a quarter bigger."
+      },
+      {
+        "key": "windowWidth",
+        "type": "integer",
+        "label": "Panel width",
+        "min": 440,
+        "max": 1000,
+        "step": 20,
+        "defaultValue": 560,
+        "description": "How wide the bar panel and the window are."
+      },
+      {
+        "key": "windowHeight",
+        "type": "integer",
+        "label": "Panel height",
+        "min": 460,
+        "max": 1100,
+        "step": 20,
+        "defaultValue": 680,
+        "description": "How tall."
+      },
+      {
+        "key": "openAs",
+        "type": "enum",
+        "label": "Open as",
+        "options": [
+          "panel",
+          "window"
+        ],
+        "defaultValue": "panel",
+        "description": "Where the bar button opens Pawmpt. You can always pop it out or dock it back from the header."
+      },
+      {
+        "key": "frame",
+        "type": "boolean",
+        "label": "Window outline",
+        "defaultValue": false,
+        "description": "Draw the edge in your window border's colors instead of a plain neutral line."
+      },
+      {
+        "key": "frameGradient",
+        "type": "boolean",
+        "label": "Outline gradient",
+        "defaultValue": true,
+        "description": "Use the window border's whole gradient, at its angle, when it has more than one color."
+      },
+      {
+        "key": "frameColor",
+        "type": "enum",
+        "label": "Outline color",
+        "options": [
+          "accent",
+          "first",
+          "middle",
+          "last"
+        ],
+        "defaultValue": "accent",
+        "description": "The one color the outline takes when it isn't a gradient."
+      },
+      {
+        "key": "surfaceTint",
+        "type": "integer",
+        "label": "Window tint",
+        "min": 0,
+        "max": 30,
+        "step": 2,
+        "defaultValue": 0,
+        "description": "How much of the accent washes over the background. 0 keeps it plain."
+      },
+      {
+        "key": "winOpacity",
+        "type": "integer",
+        "label": "Window opacity",
+        "min": 50,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 97,
+        "description": "100 is solid."
+      },
+      {
+        "key": "barShows",
+        "type": "enum",
+        "label": "Bar button shows",
+        "options": [
+          "pal",
+          "icon"
+        ],
+        "defaultValue": "pal"
+      },
+      {
+        "key": "barLeft",
+        "type": "enum",
+        "label": "Left click",
+        "options": [
+          "toggle",
+          "panel",
+          "wardrobe",
+          "ask",
+          "voice",
+          "none"
+        ],
+        "defaultValue": "toggle"
+      },
+      {
+        "key": "barMiddle",
+        "type": "enum",
+        "label": "Middle click",
+        "options": [
+          "toggle",
+          "panel",
+          "wardrobe",
+          "ask",
+          "voice",
+          "none"
+        ],
+        "defaultValue": "ask"
+      },
+      {
+        "key": "barRight",
+        "type": "enum",
+        "label": "Right click",
+        "options": [
+          "toggle",
+          "panel",
+          "wardrobe",
+          "ask",
+          "voice",
+          "none"
+        ],
+        "defaultValue": "panel"
+      },
+      {
+        "key": "palTheme",
+        "type": "boolean",
+        "label": "Use the theme's colors",
+        "defaultValue": false,
+        "description": "Body, eyes and details follow your Omarchy theme, live. Picking a color yourself puts the theme's colors in its place to start from."
+      },
+      {
+        "key": "palBody",
+        "type": "string",
+        "label": "Body",
+        "defaultValue": "#ff6fa8",
+        "description": "Details are the cheeks, ears, belly and so on. Used exactly as you pick them."
+      },
+      {
+        "key": "palEye",
+        "type": "string",
+        "label": "Eyes",
+        "defaultValue": "#2a1020",
+        "description": "Details are the cheeks, ears, belly and so on. Used exactly as you pick them."
+      },
+      {
+        "key": "palAccent",
+        "type": "string",
+        "label": "Details",
+        "defaultValue": "#ffd1e3",
+        "description": "Details are the cheeks, ears, belly and so on. Used exactly as you pick them."
+      },
+      {
+        "key": "palBody2",
+        "type": "string",
+        "label": "Second body",
+        "defaultValue": "#c4457a",
+        "description": "The second body color is for the fills below; the outline and the pattern have their own switches."
+      },
+      {
+        "key": "palOutline",
+        "type": "string",
+        "label": "Outline",
+        "defaultValue": "#2a1020",
+        "description": "The second body color is for the fills below; the outline and the pattern have their own switches."
+      },
+      {
+        "key": "palPattern",
+        "type": "string",
+        "label": "Pattern",
+        "defaultValue": "#ffffff",
+        "description": "The second body color is for the fills below; the outline and the pattern have their own switches."
+      },
+      {
+        "key": "bodyFill",
+        "type": "enum",
+        "label": "Body fill",
+        "options": [
+          "flat",
+          "vertical",
+          "radial"
+        ],
+        "defaultValue": "flat",
+        "description": "The two body colors blend."
+      },
+      {
+        "key": "pattern",
+        "type": "enum",
+        "label": "Pattern",
+        "options": [
+          "none",
+          "spots",
+          "stripes",
+          "stars",
+          "hearts"
+        ],
+        "defaultValue": "none"
+      },
+      {
+        "key": "patternSize",
+        "type": "integer",
+        "label": "Pattern size",
+        "min": 50,
+        "max": 200,
+        "step": 10,
+        "defaultValue": 100,
+        "description": "Percent."
+      },
+      {
+        "key": "outlineWidth",
+        "type": "integer",
+        "label": "Outline",
+        "min": 0,
+        "max": 6,
+        "step": 1,
+        "defaultValue": 0,
+        "description": "A line around the pal in the outline color. 0 has none."
+      },
+      {
+        "key": "glow",
+        "type": "integer",
+        "label": "Glow",
+        "min": 0,
+        "max": 60,
+        "step": 5,
+        "defaultValue": 0,
+        "description": "A soft glow around it in the details color."
+      },
+      {
+        "key": "shine",
+        "type": "boolean",
+        "label": "Shine",
+        "defaultValue": true,
+        "description": "The little white highlight on the body of the round characters. It is not the glow: the glow is the soft light outside the pal, the shine is a spot on it, so you can use both or either."
+      },
+      {
+        "key": "blush",
+        "type": "boolean",
+        "label": "Blush",
+        "defaultValue": true,
+        "description": "Cheeks, in the details color."
+      },
+      {
+        "key": "eyeStyle",
+        "type": "enum",
+        "label": "Eyes",
+        "options": [
+          "normal",
+          "round",
+          "wide",
+          "sleepy",
+          "happy",
+          "sparkle",
+          "dots",
+          "real",
+          "angry",
+          "slit",
+          "hearts",
+          "stars",
+          "cross",
+          "lashes"
+        ],
+        "defaultValue": "normal"
+      },
+      {
+        "key": "mouthStyle",
+        "type": "enum",
+        "label": "Mouth",
+        "options": [
+          "smile",
+          "open",
+          "cat",
+          "flat",
+          "fang",
+          "none",
+          "real",
+          "grin",
+          "tongue",
+          "smirk",
+          "wavy",
+          "pout"
+        ],
+        "defaultValue": "smile"
+      },
+      {
+        "key": "character",
+        "type": "string",
+        "label": "Character",
+        "defaultValue": "blob"
+      },
+      {
+        "key": "skin",
+        "type": "string",
+        "label": "Skin",
+        "defaultValue": "Bubblegum"
+      }
+    ]
+  }
+}

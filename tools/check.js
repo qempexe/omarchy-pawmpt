@@ -22,7 +22,7 @@ function load(file) {
 }
 function exportsOf(src) {
     const names = new Set();
-    for (const m of src.matchAll(/^(?:var|function)\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
+    for (const m of src.matchAll(/^(?:var|let|const|function)\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
     return [...names];
 }
 

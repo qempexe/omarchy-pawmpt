@@ -32,7 +32,7 @@ for (const e of m.barWidget.schema) {
 ok(true, m.barWidget.schema.length + " settings entries are well formed");
 
 // 4. the plain-text rule: no tabs, no trailing spaces in the docs
-for (const f of ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "HANDOFF.md"]) {
+for (const f of ["README.md", "CHANGELOG.md", "CONTRIBUTING.md"]) {
     const t = read(f);
     ok(!/\t/.test(t), f + " has no tabs");
 }

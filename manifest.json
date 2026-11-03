@@ -500,7 +500,7 @@
         "type": "boolean",
         "label": "Let it act",
         "defaultValue": false,
-        "description": "Runs commands and edits files without asking. Off: anything it needs permission for is turned down, so it can only read and answer."
+        "description": "Runs commands and edits files without asking. Off: it can only read, search and look things up, and anything else is turned down, whatever your opencode config allows."
       },
       {
         "key": "agentPrefix",

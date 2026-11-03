@@ -140,7 +140,7 @@ const groups = [
               hint: "Only models that think support this; others ignore it." },
             { key: "agentAuto", label: "Let it act", kind: "bool", fallback: false, section: "How it works",
               when: [{ key: "agent", is: ["opencode"] }],
-              hint: "Runs commands and edits files without asking. Off: anything it needs permission for is turned down, so it can only read and answer." },
+              hint: "Runs commands and edits files without asking. Off: it can only read, search and look things up, and anything else is turned down, whatever your opencode config allows." },
             { key: "agentPrefix", label: "Always tell it", kind: "string", fallback: "", maxLength: 400, section: "How it works",
               hint: "A line put in front of every question, for example: Answer in two sentences." },
             { key: "agentStyle", label: "Answer style", kind: "enum", fallback: "normal", section: "Answers",

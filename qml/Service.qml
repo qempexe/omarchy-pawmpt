@@ -990,6 +990,18 @@ Item {
         return argv
     }
 
+    // With Let it act off, opencode gets permissions that only let it read and look things up. Its
+    // Build agent allows everything by default, and `opencode run` only turns down what would ask,
+    // so without these it could still edit files and run commands. They go in through the
+    // environment (OPENCODE_CONFIG_CONTENT, loaded after your own config files), not the arguments.
+    readonly property string readOnlyConfig: JSON.stringify({ permission: {
+        "*": "deny", edit: "deny", bash: "deny", task: "deny", skill: "deny", external_directory: "deny",
+        doom_loop: "deny", question: "deny",
+        read: { "*": "allow", "*.env": "deny", "*.env.*": "deny", "*.env.example": "allow" },
+        glob: "allow", grep: "allow", list: "allow", lsp: "allow", todowrite: "allow", todoread: "allow",
+        webfetch: "allow", websearch: "allow", codesearch: "allow"
+    } })
+
     // 1. which window is active, 2. which folder it is in, 3. ask
     // Quick actions: a prompt that works on the text you have selected, or else on what you copied.
     readonly property var quickActions: Prompt.quickList(settings)
@@ -1110,6 +1122,7 @@ Item {
         rawOut = ""
         errText = ""
         agent.workingDirectory = workDir
+        agent.environment = (argv[0] === "opencode" && !settings.agentAuto) ? ({ OPENCODE_CONFIG_CONTENT: readOnlyConfig }) : ({})
         // the question is written to stdin once it has started, then stdin is closed (see onStarted)
         agentInput = stdinPrompt ? lastPrompt : ""
         agent.stdinEnabled = true

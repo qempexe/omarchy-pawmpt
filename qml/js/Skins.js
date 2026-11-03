@@ -6,9 +6,9 @@
 // ---- characters ---------------------------------------------------------------------------
 // Pictures you add show up under "Yours", or under the name of the folder they are in
 // (~/.config/pawmpt/characters/Anime/neko.png is in the category Anime).
-var categories = ["Classic", "Animals", "Anime", "Game heroes", "Fantasy", "Sci-fi", "Spooky", "Food", "Nature", "Retro and pixel", "Dev and desk"];
+const categories = ["Classic", "Animals", "Anime", "Game heroes", "Fantasy", "Sci-fi", "Spooky", "Food", "Nature", "Retro and pixel", "Dev and desk"];
 
-var characters = [
+const characters = [
     { key: "blob",      label: "Blob",      category: "Classic" },
     { key: "ghost",     label: "Ghost",     category: "Classic" },
     { key: "cat",       label: "Cat",       category: "Classic" },
@@ -107,7 +107,7 @@ function isBuiltIn(key) { return characterKeys().indexOf(key) >= 0; }
 // ---- skins ----------------------------------------------------------------------------------
 // A skin is a set of the Skin settings (the keys are the setting keys). What a preset leaves
 // out goes back to the default. "Theme" takes its colors from the Omarchy theme (palTheme), live.
-var presets = [
+const presets = [
     { name: "Bubblegum", palBody: "#ff6fa8", palEye: "#2a1020", palAccent: "#ffd1e3" },
     { name: "Mint",      palBody: "#6fe0b4", palEye: "#0f2a20", palAccent: "#d6fff0" },
     { name: "Lava",      palBody: "#ff5a36", palEye: "#2a0a04", palAccent: "#ffc04d", bodyFill: "vertical", palBody2: "#c4210a" },
@@ -126,14 +126,14 @@ var presets = [
 ];
 
 function preset(name) {
-    for (var i = 0; i < presets.length; i++) if (presets[i].name === name) return presets[i];
+    for (let i = 0; i < presets.length; i++) if (presets[i].name === name) return presets[i];
     return null;
 }
 function isHex(s) { return /^#[0-9a-fA-F]{6}$/.test(String(s)); }
 
 // ---- dress ----------------------------------------------------------------------------------
 // slot: where it goes. color: the default color (you can change it per item).
-var slots = [
+const slots = [
     { key: "head",  label: "Head" },
     { key: "face",  label: "Face" },
     { key: "neck",  label: "Neck" },
@@ -141,7 +141,7 @@ var slots = [
     { key: "extra", label: "Extras" }
 ];
 
-var dressItems = [
+const dressItems = [
     { id: "tophat",     label: "Top hat",     slot: "head",  color: "#2b2b33" },
     { id: "party",      label: "Party hat",   slot: "head",  color: "#ff5fa2" },
     { id: "crown",      label: "Crown",       slot: "head",  color: "#f2c94c" },
@@ -171,25 +171,25 @@ var dressItems = [
     { id: "hearts",     label: "Hearts",      slot: "extra", color: "#ff5f8f" }
 ];
 
-var dressSwatches = ["#ffffff", "#15151b", "#e84c4c", "#ff5fa2", "#ff9a3c", "#f2c94c",
-                     "#7ed957", "#2fc4b2", "#4da3ff", "#6a4cff", "#a06bff", "#8a5a3a"];
+const dressSwatches = ["#ffffff", "#15151b", "#e84c4c", "#ff5fa2", "#ff9a3c", "#f2c94c",
+                       "#7ed957", "#2fc4b2", "#4da3ff", "#6a4cff", "#a06bff", "#8a5a3a"];
 
 function dressItem(id) {
-    for (var i = 0; i < dressItems.length; i++) if (dressItems[i].id === id) return dressItems[i];
+    for (let i = 0; i < dressItems.length; i++) if (dressItems[i].id === id) return dressItems[i];
     return null;
 }
 
 // what is worn: [{ id, color, size (50..160 %), dy (-40..40, in % of the pal's height) }]
 function cleanDress(list) {
-    var out = [];
+    const out = [];
     if (!Array.isArray(list)) return out;
-    for (var i = 0; i < list.length && out.length < 12; i++) {
-        var d = list[i];
+    for (let i = 0; i < list.length && out.length < 12; i++) {
+        const d = list[i];
         if (!d || typeof d !== "object" || !dressItem(String(d.id))) continue;
-        var dup = false;
-        for (var j = 0; j < out.length; j++) if (out[j].id === d.id) dup = true;
+        let dup = false;
+        for (let j = 0; j < out.length; j++) if (out[j].id === d.id) dup = true;
         if (dup) continue;
-        var size = parseInt(d.size, 10), dy = parseInt(d.dy, 10);
+        const size = parseInt(d.size, 10), dy = parseInt(d.dy, 10);
         out.push({
             id: String(d.id),
             color: isHex(d.color) ? String(d.color).toLowerCase() : dressItem(String(d.id)).color,
@@ -201,6 +201,6 @@ function cleanDress(list) {
 }
 
 function wearing(list, id) {
-    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    for (let i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
 }

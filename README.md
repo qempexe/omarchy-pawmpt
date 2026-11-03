@@ -107,11 +107,11 @@ Everything applies at once and is saved in `~/.local/state/omarchy-pawmpt/`. Eac
 | Controls | Left, right and middle click | Ask, Menu, Settings | |
 | | Drag it around, Remember where it was | on, on | |
 | | Drop it at the side to change screen | on | |
-| Agent | Agent | opencode | or Ollama, or your own command with `{prompt}` |
+| Agent | Agent | opencode | or Ollama, or your own command, which gets the question on stdin |
 | | Model | the agent's own default | searchable list of every model your providers offer |
 | | Agent mode | Build | or Plan, which only reads and suggests |
 | | Thinking effort | Model default | Low, Medium, High or Max |
-| | Let it act | off | runs commands and edits files without asking |
+| | Let it act | off | runs commands and edits files without asking; off, it can only read, search and look things up |
 | | Answer style, Answer in | As it likes, any language | Short, Detailed, Step by step or Simple |
 | | Remember the conversation | on | a new chat after 45 minutes of quiet |
 | | Tell it about the active window | on | |
@@ -148,7 +148,8 @@ o.window({ tag = "pawmpt-window" }, { size = { 560, 680 } })
 
 - **The pal doesn't show after installing.** Restart the shell once with `omarchy restart shell`.
 - **The bar button does nothing.** It looks for Pawmpt's service through the bar, and through Pawmpt itself when the bar is a replacement that can't hand it over. If it still does nothing, restart the shell.
-- **It keeps thinking.** Check that `opencode run "hi"` answers in a terminal. Without **Let it act**, anything that needs permission is turned down, so a task that must run commands ends early.
+- **It keeps thinking.** Check that `opencode run "hi"` answers in a terminal.
+- **It won't edit or run anything.** That is **Let it act** being off: opencode then may only read, search and look things up, whatever your own opencode config allows, so a task that must change files or run commands ends early. Turn it on to let it act.
 - **Unrecognized flag.** opencode versions differ; Pawmpt leaves out a flag your opencode doesn't know and asks again.
 - **No models in the list.** Connect a provider with `opencode auth login`, then press **Refresh**.
 - **Where things live.**
@@ -160,6 +161,7 @@ o.window({ tag = "pawmpt-window" }, { size = { 560, 680 } })
 
 - **Network.** Pawmpt itself goes nowhere. Your question goes to the agent you picked, which talks to its own provider.
 - **What it reads.** The active window's title and folder, and what you selected or copied, are only read when you ask, only when that setting is on, and at most 64 KB of it.
+- **What other users can see.** Your question, the context and the answers never go in a command's arguments, which anyone on the computer can list: the agent gets the question on stdin, copying goes to `wl-copy` on stdin, and a notification only says that an answer is ready. The one exception is putting `{prompt}` in your own command.
 
 ## Contributing
 

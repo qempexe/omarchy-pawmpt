@@ -42,8 +42,11 @@ BarWidget {
     // shell palette if the bar does not expose them.
     readonly property color barFg: (root.bar && root.bar.barForeground !== undefined)
         ? root.bar.barForeground : (Color.foreground !== undefined ? Color.foreground : "white")
-    readonly property color barBg: (root.bar && root.bar.barBackground !== undefined)
-        ? root.bar.barBackground : (Color.background !== undefined ? Color.background : "#121217")
+    // A restyled bar draws its own surfaces and can leave the bar itself
+    // transparent; the panel then takes the theme's background, so it is never see-through.
+    readonly property color themeBg: Color.background !== undefined ? Color.background : "#121217"
+    readonly property color barBg: (root.bar && root.bar.barBackground !== undefined && root.bar.barBackground.a >= 0.5)
+        ? root.bar.barBackground : themeBg
     Binding { target: root.svc; property: "barFg"; value: root.barFg; when: root.svc !== null }
     Binding { target: root.svc; property: "barBg"; value: root.barBg; when: root.svc !== null }
     Binding { target: root.svc; property: "barFont"; value: root.bar && root.bar.fontFamily ? root.bar.fontFamily : ""; when: root.svc !== null }

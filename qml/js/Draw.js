@@ -2510,3 +2510,80 @@ var dressDraw = {
         }
     }
 };
+
+// ---- where a character really is on its canvas ---------------------------------------------
+// The drawing leaves room above the head for hats and stands on the bottom edge, so a small
+// copy (the bar button) is centred on what is drawn, not on the canvas. This draws the
+// character once on a canvas that only records where the pen goes, and returns the box it
+// used, in fractions of the canvas: { x0, y0, x1, y1 }. Cached per character.
+const boundsCache = {};
+function bounds(kind) {
+    if (boundsCache[kind]) return boundsCache[kind];
+    const W = 100;
+    let m = [1, 0, 0, 1, 0, 0];
+    const stack = [];
+    let px = 0, py = 0;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    let clipped = false;
+    const mul = function(a, b) {
+        return [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3],
+                a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+    };
+    const pt = function(x, y) {
+        if (clipped || !isFinite(x) || !isFinite(y)) return;
+        const X = m[0] * x + m[2] * y + m[4], Y = m[1] * x + m[3] * y + m[5];
+        if (X < x0) x0 = X; if (X > x1) x1 = X; if (Y < y0) y0 = Y; if (Y > y1) y1 = Y;
+    };
+    const grad = function() { return { addColorStop: function() {} }; };
+    const ctx = {
+        fillStyle: "#000", strokeStyle: "#000", lineWidth: 1, lineCap: "", lineJoin: "", globalAlpha: 1,
+        shadowBlur: 0, shadowColor: "", shadowOffsetX: 0, shadowOffsetY: 0, globalCompositeOperation: "",
+        save: function() { stack.push([m.slice(), clipped]); },
+        restore: function() { const s = stack.pop(); if (s) { m = s[0]; clipped = s[1]; } },
+        translate: function(x, y) { m = mul(m, [1, 0, 0, 1, x, y]); },
+        rotate: function(a) { m = mul(m, [Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), 0, 0]); },
+        scale: function(x, y) { m = mul(m, [x, 0, 0, y, 0, 0]); },
+        clearRect: function() {}, beginPath: function() {}, closePath: function() {}, fill: function() {}, stroke: function() {},
+        moveTo: function(x, y) { px = x; py = y; pt(x, y); },
+        lineTo: function(x, y) { px = x; py = y; pt(x, y); },
+        quadraticCurveTo: function(a, b, x, y) {
+            for (let i = 1; i <= 8; i++) { const t = i / 8, u = 1 - t; pt(u * u * px + 2 * u * t * a + t * t * x, u * u * py + 2 * u * t * b + t * t * y); }
+            px = x; py = y;
+        },
+        bezierCurveTo: function(a, b, c, d, x, y) {
+            for (let i = 1; i <= 10; i++) {
+                const t = i / 10, u = 1 - t;
+                pt(u * u * u * px + 3 * u * u * t * a + 3 * u * t * t * c + t * t * t * x,
+                   u * u * u * py + 3 * u * u * t * b + 3 * u * t * t * d + t * t * t * y);
+            }
+            px = x; py = y;
+        },
+        arcTo: function(a, b, x, y) { pt(a, b); px = x; py = y; },
+        arc: function(x, y, r, a0, a1, ccw) {
+            // canvas arcs run clockwise (y points down) unless ccw is set
+            const n = 16, full = 2 * Math.PI;
+            let d = ((ccw ? a0 - a1 : a1 - a0) % full + full) % full;
+            if (d === 0 && a1 !== a0) d = full;
+            const span = ccw ? -d : d;
+            for (let i = 0; i <= n; i++) { const a = a0 + span * i / n; pt(x + r * Math.cos(a), y + r * Math.sin(a)); }
+            px = x + r * Math.cos(a1); py = y + r * Math.sin(a1);
+        },
+        rect: function(x, y, w, h) { pt(x, y); pt(x + w, y + h); },
+        ellipse: function(x, y, w, h) { pt(x, y); pt(x + w, y + h); },
+        createLinearGradient: grad, createRadialGradient: grad
+    };
+    // drawing that is clipped to the body (patterns, shading) never widens the box
+    Object.defineProperty(ctx, "globalCompositeOperation", {
+        get: function() { return clipped ? "source-atop" : ""; },
+        set: function(v) { clipped = v === "source-atop"; }
+    });
+    try {
+        draw(ctx, W, W, { kind: kind, t: 0, lookX: 0, lookY: 0, blink: 0, busy: false, breathe: false,
+                         body: "#888888", body2: "#666666", eye: "#000000", accent: "#cccccc", outline: "#000000", outlineWidth: 0 });
+    } catch (e) { x0 = Infinity; }
+    const box = (isFinite(x0) && x1 > x0 && y1 > y0)
+        ? { x0: Math.max(0, x0 / W), y0: Math.max(0, y0 / W), x1: Math.min(1, x1 / W), y1: Math.min(1, y1 / W) }
+        : { x0: 0, y0: 0, x1: 1, y1: 1 };
+    boundsCache[kind] = box;
+    return box;
+}

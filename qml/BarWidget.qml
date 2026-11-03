@@ -3,6 +3,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 import "controls"
+import "js/Draw.js" as Draw
 
 // The bar button: a tiny copy of your pal (or an icon). What the three mouse buttons do is
 // set in Settings › Bar. Open Pawmpt opens (and closes) the panel, which hangs off the bar
@@ -129,28 +130,43 @@ BarWidget {
         labelVisible: false
         hasVisualContent: true
         tooltipText: root.svc && !root.svc.shown ? "Show your pal" : "Pawmpt"
-        fixedWidth: root.vertical ? -1 : Math.round(mini.width + scaledHorizontalMargin * 2)
-        fixedHeight: root.vertical ? Math.round(mini.height + scaledVerticalPadding * 2) : -1
+        fixedWidth: root.vertical ? -1 : Math.round(iconBox.width + scaledHorizontalMargin * 2)
+        fixedHeight: root.vertical ? Math.round(iconBox.height + scaledVerticalPadding * 2) : -1
 
         onPressed: function(buttonCode) {
             if (buttonCode === Qt.LeftButton) root.act(root.cfg.barLeft || "toggle")
             else if (buttonCode === Qt.MiddleButton) root.act(root.cfg.barMiddle || "ask")
         }
 
-        Critter {
-            id: mini
+        // The drawing leaves room for hats and stands on its canvas's bottom edge, so the pal is
+        // sized and placed by what it really draws (Draw.bounds): its body fills the icon's
+        // square and sits in the middle of the button, like the bar's other icons.
+        Item {
+            id: iconBox
             anchors.centerIn: parent
             width: Math.round(Style.bar.iconCanvas * 1.35)
             height: width
             visible: root.cfg.barShows !== "icon"
-            kind: root.cfg.character || "blob"
-            source: root.svc ? root.svc.characterSource(kind) : ""
-            skin: root.svc ? root.svc.skinOpts : ({})
-            items: root.svc ? root.svc.dress : []
-            idle: "still"
-            blinks: true
-            busy: root.svc ? root.svc.busy : false
-            opacity: root.svc && !root.svc.shown ? 0.5 : 1
+
+            readonly property var box: mini.custom ? ({ x0: 0, y0: 0, x1: 1, y1: 1 }) : Draw.bounds(mini.kind)
+            readonly property real span: Math.max(0.2, box.x1 - box.x0, box.y1 - box.y0)
+            readonly property real side: Math.min(width * 2.5, width / span)
+
+            Critter {
+                id: mini
+                width: iconBox.side
+                height: width
+                x: Math.round(iconBox.width / 2 - (iconBox.box.x0 + iconBox.box.x1) / 2 * width)
+                y: Math.round(iconBox.height / 2 - (iconBox.box.y0 + iconBox.box.y1) / 2 * height)
+                kind: root.cfg.character || "blob"
+                source: root.svc ? root.svc.characterSource(kind) : ""
+                skin: root.svc ? root.svc.skinOpts : ({})
+                items: root.svc ? root.svc.dress : []
+                idle: "still"
+                blinks: true
+                busy: root.svc ? root.svc.busy : false
+                opacity: root.svc && !root.svc.shown ? 0.5 : 1
+            }
         }
         Text {
             anchors.centerIn: parent

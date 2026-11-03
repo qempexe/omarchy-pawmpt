@@ -206,7 +206,7 @@ rm -rf ~/.local/state/omarchy-pawmpt ~/.config/pawmpt   # settings, pals and you
 
 [MIT](LICENSE).
 
-- Inspired by **goop**, the idea of a creature on the desktop that takes requests.
+- Inspired by **[goop](https://github.com/nightdevil00/mihai.goop)**, the idea of a creature on the desktop that takes requests.
 - Thanks to the **Omarchy** project for the shell and its plugin system, to **Hyprland**, and to **Quickshell** and **Qt** for the toolkit.
 - Thanks to **opencode**, **Ollama** and **Hex**, which do the talking.
 - Thanks to everyone who tests it and reports issues.

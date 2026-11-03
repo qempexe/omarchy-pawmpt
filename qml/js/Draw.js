@@ -607,7 +607,7 @@ function mouth(ctx, x, y, r, o) {
 
 // ---- the characters ---------------------------------------------------------------------------
 // Each draws its body and returns where the eyes go: [{ x, y, r, square, style }].
-const shapes = {
+var shapes = {
     blob: function(ctx, cx, base, s, b, o) {
         const rx = s * 0.42 * (1 + b), ry = s * 0.38 * (1 - b);
         const cy = base - ry;
@@ -2321,7 +2321,7 @@ function dress(ctx, w, h, o, pass) {
 
 function stroked(ctx, c, lw) { ctx.strokeStyle = c; ctx.lineWidth = lw; }
 
-const dressDraw = {
+var dressDraw = {
     tophat: function(ctx, a, c, k, dy) {
         const s = a.s, w = a.headW * 0.62 * k, y = a.top + s * 0.035 + dy;
         fillRect(ctx, c, a.cx - w * 0.38, y - s * 0.26 * k, w * 0.76, s * 0.26 * k);

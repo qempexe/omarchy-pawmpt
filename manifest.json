@@ -62,7 +62,7 @@
       "moveAcross": false,
       "agent": "opencode",
       "agentModel": "",
-      "agentCommand": "claude -p {prompt}",
+      "agentCommand": "claude -p",
       "agentMode": "build",
       "agentVariant": "",
       "agentAuto": false,
@@ -468,8 +468,8 @@
         "key": "agentCommand",
         "type": "string",
         "label": "Command",
-        "defaultValue": "claude -p {prompt}",
-        "description": "{prompt} is replaced by what you ask; without it your question goes last. It runs without a shell, so no pipes or quotes."
+        "defaultValue": "claude -p",
+        "description": "Your question goes to it on stdin. It runs without a shell, so no pipes or quotes. {prompt} in it puts the question in the command line instead, where other users on this computer can see it."
       },
       {
         "key": "agentMode",

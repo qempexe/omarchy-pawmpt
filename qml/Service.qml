@@ -949,6 +949,13 @@ Item {
         return path
     }
 
+    // The question never goes in the command's arguments, where any user on the machine can read it
+    // (ps, /proc/<pid>/cmdline). opencode and Ollama read it from stdin; so does your own command, unless
+    // you put {prompt} in it yourself. argvFor() says which: stdinPrompt is true when the question is to
+    // be written to stdin.
+    property bool stdinPrompt: true
+    // the presets of earlier versions, which put the question in the arguments
+    readonly property var oldCommands: ({ "claude -p {prompt}": "claude -p", "gemini -p {prompt}": "gemini", "codex exec {prompt}": "codex exec -" })
     function argvFor(prompt) {
         const a = settings.agent || "opencode"
         const m = String(settings.agentModel || "").trim()
@@ -967,17 +974,19 @@ Item {
             if (settings.agentVariant) add("--variant", settings.agentVariant)
             if (settings.agentAuto) add("--auto")
             if (sessionId) add("--session", sessionId)
-            else add("--title", "Pawmpt: " + prompt.split("\n")[0].slice(0, 40))
-            if (!unsupported["--"]) argv.push("--")
-            argv.push(prompt)
+            else add("--title", "Pawmpt")
+            stdinPrompt = true
             return argv
         }
-        if (a === "ollama") return ["ollama", "run", m || "llama3.2", prompt]
-        const parts = String(settings.agentCommand || "").trim().split(/\s+/).filter((p) => p.length > 0)
+        if (a === "ollama") { stdinPrompt = true; return ["ollama", "run", m || "llama3.2"] }
+        let cmd = String(settings.agentCommand || "").trim()
+        if (oldCommands[cmd] !== undefined) cmd = oldCommands[cmd]
+        const parts = cmd.split(/\s+/).filter((p) => p.length > 0)
         if (parts.length === 0) return []
+        // {prompt} in your own command is your choice to pass it as an argument
         let used = false
         const argv = parts.map((p) => { if (p.indexOf("{prompt}") >= 0) { used = true; return p.split("{prompt}").join(prompt) } return p })
-        if (!used) argv.push(prompt)
+        stdinPrompt = !used
         return argv
     }
 
@@ -1101,9 +1110,10 @@ Item {
         rawOut = ""
         errText = ""
         agent.workingDirectory = workDir
-        // stdin closed: opencode waits for piped input otherwise, and never starts
-        agent.command = ["timeout", "-k", "5", String(Math.max(10, settings.agentTimeout || 300)),
-                         "sh", "-c", 'exec "$@" < /dev/null', "pawmpt"].concat(argv)
+        // the question is written to stdin once it has started, then stdin is closed (see onStarted)
+        agentInput = stdinPrompt ? lastPrompt : ""
+        agent.stdinEnabled = true
+        agent.command = ["timeout", "-k", "5", String(Math.max(10, settings.agentTimeout || 300))].concat(argv)
         agent.running = true
     }
     function finish(ok, text) {
@@ -1161,8 +1171,11 @@ Item {
     }
     function clean(t) { return String(t || "").replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "") }
 
+    property string agentInput: ""
     Process {
         id: agent
+        // the question on stdin, then end of input, so the agent starts right away
+        onStarted: { if (root.agentInput !== "") agent.write(root.agentInput); root.agentInput = ""; agent.stdinEnabled = false }
         stdout: SplitParser { onRead: (line) => root.onLine(line) }
         stderr: StdioCollector { id: agentErr }
         onExited: (code) => {

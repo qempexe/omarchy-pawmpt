@@ -250,7 +250,7 @@ Item {
     Process {
         id: pasteProc
         running: false
-        command: ["wl-paste", "--no-newline"]
+        command: ["wl-paste", "--no-newline", "--type", "text"]
         stdout: SplitParser {
             splitMarker: ""
             onRead: function(data) {
@@ -1032,7 +1032,8 @@ Item {
     // the selection and the clipboard are read once, by wl-paste, for at most two seconds each
     Process {
         id: selProbe
-        command: ["timeout", "2", "wl-paste", "--primary", "--no-newline"]
+        // text only, and at most 64 KB, so a huge clipboard or a copied picture never fills the shell
+        command: ["sh", "-c", 'timeout 2 wl-paste --primary --no-newline --type text 2>/dev/null | head -c 65536']
         stdout: StdioCollector { id: selOut }
         onExited: {
             root.pendingSel = root.grabbed(selOut.text)
@@ -1042,7 +1043,7 @@ Item {
     }
     Process {
         id: clipProbe
-        command: ["timeout", "2", "wl-paste", "--no-newline"]
+        command: ["sh", "-c", 'timeout 2 wl-paste --no-newline --type text 2>/dev/null | head -c 65536']
         stdout: StdioCollector { id: clipOut }
         onExited: { root.pendingClip = root.grabbed(clipOut.text); winProbe.running = true }
     }

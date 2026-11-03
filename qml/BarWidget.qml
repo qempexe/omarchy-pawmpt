@@ -4,6 +4,7 @@ import qs.Commons
 import qs.Ui
 import "controls"
 import "js/Draw.js" as Draw
+import "js/Registry.js" as Registry
 
 // The bar button: a tiny copy of your pal (or an icon). What the three mouse buttons do is
 // set in Settings › Bar. Open Pawmpt opens (and closes) the panel, which hangs off the bar
@@ -22,6 +23,8 @@ BarWidget {
                 else if (bar.shell.services && bar.shell.services[moduleName]) svc = bar.shell.services[moduleName]
             }
         } catch (e) { svc = null }
+        // a replacement bar may not reach this plugin's service: use the one that registered itself
+        if (!svc) svc = Registry.get()
     }
     Timer { interval: 250; repeat: true; running: root.svc === null; onTriggered: root.lookup() }
 

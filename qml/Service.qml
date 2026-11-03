@@ -7,6 +7,7 @@ import "js/Schema.js" as Schema
 import "js/Theme.js" as Theme
 import "js/Prompt.js" as Prompt
 import "js/Voice.js" as Voice
+import "js/Registry.js" as Registry
 
 // Pawmpt's shared state: the settings (saved in ~/.config/pawmpt/settings.json, every one of
 // them described in Schema.js), the skins and what the pal wears, the characters you added
@@ -470,6 +471,7 @@ Item {
     property string panelScreen: ""
     property var hypr: null
     Component.onCompleted: {
+        Registry.set(root)
         loadSaved()
         try {
             hypr = Qt.createQmlObject('import QtQuick\nimport Quickshell.Hyprland\nQtObject { readonly property string name: Hyprland.focusedMonitor ? String(Hyprland.focusedMonitor.name) : "" }', root, "PawmptFocusedScreen")
@@ -759,7 +761,7 @@ Item {
         interval: 300
         onTriggered: if (!root.writeNow()) restart()      // not read yet: try again shortly
     }
-    Component.onDestruction: { if (saveTimer.running) { saveTimer.stop(); root.writeNow() } }
+    Component.onDestruction: { Registry.clear(root); if (saveTimer.running) { saveTimer.stop(); root.writeNow() } }
     // Surprise me: every hour or every day
     Timer {
         interval: 60000

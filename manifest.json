@@ -20,7 +20,7 @@
   "barWidget": {
     "displayName": "Pawmpt",
     "description": "Show, hide and set up your desktop pal.",
-    "category": "Utilities",
+    "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right",
     "aliases": [

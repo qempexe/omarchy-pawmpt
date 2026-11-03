@@ -1117,7 +1117,8 @@ Item {
             history = history.concat([{ q: lastBody, a: String(text) }]).slice(-10)
         if (answered && settings.copyAnswer) Quickshell.execDetached(["wl-copy", "--", String(text)])
         if (settings.notifyDone && Date.now() - askedAt >= (settings.notifyAfter || 0) * 1000)
-            Quickshell.execDetached(["notify-send", "-a", "Pawmpt", ok ? "Answer ready" : "Pawmpt ran into a problem", String(text || "").slice(0, 200)])
+            Quickshell.execDetached(["notify-send", "-a", "Pawmpt", ok ? "Answer ready" : "Pawmpt ran into a problem",
+                String(text || "").slice(0, 200).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")])
     }
 
     // ---- reading the answer as it comes -------------------------------------------------------

@@ -973,6 +973,9 @@ Item {
             if (settings.agentMode && settings.agentMode !== "build") add("--agent", settings.agentMode)
             if (settings.agentVariant) add("--variant", settings.agentVariant)
             if (settings.agentAuto) add("--auto")
+            // opencode 2 hands a run to its background service when that is up, and the service
+            // never sees the read-only rules below: a private server of its own does
+            else add("--standalone")
             if (sessionId) add("--session", sessionId)
             else add("--title", "Pawmpt")
             stdinPrompt = true
@@ -994,6 +997,7 @@ Item {
     // Build agent allows everything by default, and `opencode run` only turns down what would ask,
     // so without these it could still edit files and run commands. They go in through the
     // environment (OPENCODE_CONFIG_CONTENT, loaded after your own config files), not the arguments.
+    // `opencode run --standalone` starts its own server with this environment (opencode 2).
     readonly property string readOnlyConfig: JSON.stringify({ permission: {
         "*": "deny", edit: "deny", bash: "deny", task: "deny", skill: "deny", external_directory: "deny",
         doom_loop: "deny", question: "deny",

@@ -4,6 +4,14 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-11-05
+
+### Fixed
+
+- On Omarchy 4.5, where the bar's window spans the screen, the panel didn't open, or
+  opened over the bar. It now opens off the bar's outer edge, on any edge and with any
+  bar size.
+
 ## [1.0.1] - 2026-11-03
 
 ### Security
@@ -43,5 +51,6 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.0.2]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/qempexe/omarchy-pawmpt/releases/tag/v1.0.0

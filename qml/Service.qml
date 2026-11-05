@@ -1001,13 +1001,20 @@ Item {
     // so without these it could still edit files and run commands. They go in through the
     // environment (OPENCODE_CONFIG_CONTENT, loaded after your own config files), not the arguments.
     // `opencode run --standalone` starts its own server with this environment (opencode 2).
-    readonly property string readOnlyConfig: JSON.stringify({ permission: {
+    readonly property var readOnlyRules: ({
         "*": "deny", edit: "deny", bash: "deny", task: "deny", skill: "deny", external_directory: "deny",
         doom_loop: "deny", question: "deny",
         read: { "*": "allow", "*.env": "deny", "*.env.*": "deny", "*.env.example": "allow" },
         glob: "allow", grep: "allow", list: "allow", lsp: "allow", todowrite: "allow", todoread: "allow",
         webfetch: "allow", websearch: "allow", codesearch: "allow"
-    } })
+    })
+    // The rules are given to the agents too. opencode adds an agent's own rules after the general
+    // ones, and the last rule that matches wins, so an opencode.json or .opencode folder in the work
+    // folder (a repository you cloned, say) could otherwise give its build agent everything back.
+    readonly property string readOnlyConfig: JSON.stringify({
+        permission: readOnlyRules,
+        agent: { build: { permission: readOnlyRules }, plan: { permission: readOnlyRules } }
+    })
 
     // 1. which window is active, 2. which folder it is in, 3. ask
     // Quick actions: a prompt that works on the text you have selected, or else on what you copied.

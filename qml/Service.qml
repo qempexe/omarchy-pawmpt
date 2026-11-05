@@ -1175,7 +1175,8 @@ Item {
         let e = null
         try { e = JSON.parse(line) } catch (x) { e = null }
         if (!e || typeof e !== "object") { if (line.trim()) note(clean(line).slice(0, 120)); return }
-        if (e.sessionID && settings.remember) sessionId = String(e.sessionID)
+        // only an id that looks like one: it goes back to opencode, and to a terminal for Open in opencode
+        if (e.sessionID && settings.remember && /^[A-Za-z0-9_-]{1,128}$/.test(String(e.sessionID))) sessionId = String(e.sessionID)
         const part = e.part || {}
         if (e.type === "text" && part.text) {
             reply = (reply ? reply + "\n\n" : "") + String(part.text).trim()

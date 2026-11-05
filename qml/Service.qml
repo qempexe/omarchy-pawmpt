@@ -969,9 +969,12 @@ Item {
                 if (value !== undefined) argv.push(value)
             }
             add("--format", "json")
-            if (m) add("--model", m)
+            // opencode 2 has no --variant: the thinking effort goes on the model, as provider/model#effort
+            const v = String(settings.agentVariant || "")
+            const onModel = v !== "" && unsupported["--variant"] && m !== "" && m.indexOf("#") < 0
+            if (m) add("--model", onModel ? m + "#" + v : m)
             if (settings.agentMode && settings.agentMode !== "build") add("--agent", settings.agentMode)
-            if (settings.agentVariant) add("--variant", settings.agentVariant)
+            if (v) add("--variant", v)
             if (settings.agentAuto) add("--auto")
             // opencode 2 hands a run to its background service when that is up, and the service
             // never sees the read-only rules below: a private server of its own does

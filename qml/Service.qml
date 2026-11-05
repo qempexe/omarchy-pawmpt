@@ -996,9 +996,10 @@ Item {
         return argv
     }
 
-    // With Let it act off, opencode gets permissions that only let it read and look things up. Its
-    // Build agent allows everything by default, and `opencode run` only turns down what would ask,
-    // so without these it could still edit files and run commands. They go in through the
+    // With Let it act off, opencode gets permissions that only let it read and search (and look things
+    // up online, with Look things up online on). Its Build agent allows everything by default, and
+    // `opencode run` only turns down what would ask, so without these it could still edit files and
+    // run commands. They go in through the
     // environment (OPENCODE_CONFIG_CONTENT, loaded after your own config files), not the arguments.
     // `opencode run --standalone` starts its own server with this environment (opencode 2).
     readonly property var readOnlyRules: ({
@@ -1006,8 +1007,9 @@ Item {
         doom_loop: "deny", question: "deny",
         read: { "*": "allow", "*.env": "deny", "*.env.*": "deny", "*.env.example": "allow" },
         glob: "allow", grep: "allow", list: "allow", lsp: "allow", todowrite: "allow", todoread: "allow",
-        webfetch: "allow", websearch: "allow", codesearch: "allow"
+        webfetch: web, websearch: web, codesearch: web
     })
+    readonly property string web: settings.agentWeb === true ? "allow" : "deny"
     // The rules are given to the agents too. opencode adds an agent's own rules after the general
     // ones, and the last rule that matches wins, so an opencode.json or .opencode folder in the work
     // folder (a repository you cloned, say) could otherwise give its build agent everything back.

@@ -66,6 +66,7 @@
       "agentMode": "build",
       "agentVariant": "",
       "agentAuto": false,
+      "agentWeb": false,
       "agentPrefix": "",
       "agentStyle": "normal",
       "agentLanguage": "",
@@ -500,7 +501,14 @@
         "type": "boolean",
         "label": "Let it act",
         "defaultValue": false,
-        "description": "Runs commands and edits files without asking. Off: it can only read, search and look things up, and anything else is turned down, whatever your opencode config allows."
+        "description": "Runs commands and edits files without asking. Off: it can only read and search your files, and anything else is turned down, whatever your opencode config allows."
+      },
+      {
+        "key": "agentWeb",
+        "type": "boolean",
+        "label": "Look things up online",
+        "defaultValue": false,
+        "description": "With Let it act off, lets it search the web and open pages. Off, nothing it reads leaves your computer except through the model itself: a page it opens could otherwise carry what it read away in its address."
       },
       {
         "key": "agentPrefix",

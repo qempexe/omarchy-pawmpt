@@ -1005,7 +1005,11 @@ Item {
     readonly property var readOnlyRules: ({
         "*": "deny", edit: "deny", bash: "deny", task: "deny", skill: "deny", external_directory: "deny",
         doom_loop: "deny", question: "deny",
-        read: { "*": "allow", "*.env": "deny", "*.env.*": "deny", "*.env.example": "allow" },
+        // keys and passwords stay out of reach, wherever the work folder is
+        read: { "*": "allow", "*.env": "deny", "*.env.*": "deny", "*.env.example": "allow",
+                "*/.ssh/*": "deny", "*/.gnupg/*": "deny", "*/.password-store/*": "deny", "*/.aws/*": "deny",
+                "*/.kube/*": "deny", "*/.docker/config.json": "deny", "*/.netrc": "deny", "*/.git-credentials": "deny",
+                "*/.local/share/opencode/auth.json": "deny", "*.pem": "deny", "*.key": "deny" },
         glob: "allow", grep: "allow", list: "allow", lsp: "allow", todowrite: "allow", todoread: "allow",
         webfetch: web, websearch: web, codesearch: web
     })

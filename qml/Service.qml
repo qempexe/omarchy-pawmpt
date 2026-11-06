@@ -543,7 +543,7 @@ Item {
         if (!voiceOn) { voiceFail("Voice input is off. Turn it on under Settings > Agent > Voice."); return }
         if (voiceState === "idle") {
             if (mode !== "toggle" && mode !== "start") return
-            if (busy || agent.running || retryTimer.running || voiceStart.running || voiceStop.running) return
+            if (busy || agent.running || retryTimer.running || voiceStart.running || voiceStop.running || voiceAbort.running) return
             shown = true
             draft = ""
             voiceCancelled = false
@@ -564,11 +564,21 @@ Item {
         voiceStop.command = Voice.argv(Voice.stopScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
         voiceStop.running = true
     }
+    // A start still on its way (Hex can take a while to come up) is stopped, and Hex is only told to
+    // cancel once that start is gone: cancelling first could let the start begin recording afterwards,
+    // with Pawmpt idle. Until the cancel is done, voice can't be started again.
     function voiceCancel() {
         voiceMaxTimer.stop()
-        if (voiceStart.running) voiceCancelled = true      // the start that is still on its way is dropped
         voiceNote = ""
         voiceState = "idle"
+        if (voiceStart.running) {
+            voiceCancelled = true
+            voiceStart.running = false
+            return
+        }
+        voiceAbortNow()
+    }
+    function voiceAbortNow() {
         voiceAbort.command = Voice.argv(Voice.cancelScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
         voiceAbort.running = true
     }
@@ -578,7 +588,7 @@ Item {
         id: voiceStart
         stderr: StdioCollector { id: voiceStartErr }
         onExited: (code) => {
-            if (root.voiceCancelled) { root.voiceCancelled = false; return }
+            if (root.voiceCancelled) { root.voiceCancelled = false; root.voiceAbortNow(); return }
             if (root.voiceState !== "starting") return
             if (code !== 0) { root.voiceFail(Voice.startProblem(code, voiceStartErr.text)); return }
             root.voiceNote = "Listening… say it, then click the mic (or run voice again) to send."

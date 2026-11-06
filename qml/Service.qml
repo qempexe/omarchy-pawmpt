@@ -550,8 +550,7 @@ Item {
             reply = ""; replyOk = true; activity = []
             voiceNote = "Waking Hex up…"
             voiceState = "starting"
-            voiceStart.command = Voice.argv(Voice.startScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
-            voiceStart.running = true
+            voiceStep("try")
         } else if (voiceState === "listening") {
             if (mode === "toggle" || mode === "stop") voiceStopNow()
             else if (mode === "cancel") voiceCancel()
@@ -578,6 +577,14 @@ Item {
         }
         voiceAbortNow()
     }
+    // runs one step of starting to record (qml/js/Voice.js has the steps)
+    property string voiceStepNow: ""
+    function voiceStep(step) {
+        if (voiceState !== "starting" || voiceCancelled) return
+        voiceStepNow = step
+        voiceStart.command = Voice.argv(Voice.STEPS[step](), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
+        voiceStart.running = true
+    }
     function voiceAbortNow() {
         voiceAbort.command = Voice.argv(Voice.cancelScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
         voiceAbort.running = true
@@ -590,7 +597,9 @@ Item {
         onExited: (code) => {
             if (root.voiceCancelled) { root.voiceCancelled = false; root.voiceAbortNow(); return }
             if (root.voiceState !== "starting") return
-            if (code !== 0) { root.voiceFail(Voice.startProblem(code, voiceStartErr.text)); return }
+            const next = Voice.afterStep(root.voiceStepNow, code)
+            if (next.step) { Qt.callLater(root.voiceStep, next.step); return }
+            if (next.fail) { root.voiceFail(Voice.startProblem(code, voiceStartErr.text)); return }
             root.voiceNote = "Listening… say it, then click the mic (or run voice again) to send."
             root.voiceState = "listening"
             voiceMaxTimer.interval = Math.max(5, root.settings.voiceMaxSeconds || 30) * 1000

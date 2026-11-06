@@ -9,9 +9,21 @@
 const FIND = 'h="$1"; command -v "$h" >/dev/null 2>&1 || { [ -x "$HOME/.local/bin/hex" ] && h="$HOME/.local/bin/hex"; }; '
     + 'command -v "$h" >/dev/null 2>&1 || { echo "Hex is not installed" >&2; exit 127; }; ';
 
-// start recording; when Hex is not running (or not listening), start it and try once more
-function startScript() {
-    return FIND + '"$h" dictation start >/dev/null 2>&1 && exit 0; timeout 25 "$h" start >/dev/null 2>&1; exec "$h" dictation start';
+// Starting to record takes up to three steps, each its own process: try `hex dictation start`; when
+// Hex is not running (or not listening), start it, then try once more. Every step ends in exec, so the
+// process Pawmpt runs is hex itself (or timeout, which waits for hex): when Cancel stops a step, there
+// is no child left behind that could still start recording after the cancel.
+function tryScript() { return FIND + 'exec "$h" dictation start >/dev/null 2>&1'; }
+function bootScript() { return FIND + 'exec timeout 25 "$h" start >/dev/null 2>&1'; }
+function startScript() { return FIND + 'exec "$h" dictation start >/dev/null'; }
+const STEPS = { "try": tryScript, boot: bootScript, start: startScript };
+
+// what comes after a start step ended with this exit code:
+// { listening: true }, { fail: true } (the code says why), or { step: <the next step> }
+function afterStep(step, code) {
+    if (step === "try") return code === 0 ? { listening: true } : code === 127 ? { fail: true } : { step: "boot" };
+    if (step === "boot") return code === 127 ? { fail: true } : { step: "start" };
+    return code === 0 ? { listening: true } : { fail: true };
 }
 // stop and print what was said (Hex waits up to 60 s for it; this gives it 75)
 function stopScript() { return FIND + 'exec timeout 75 "$h" dictation stop --print'; }
@@ -53,6 +65,7 @@ function stopProblem(code, text, err) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-    FIND: FIND, startScript: startScript, stopScript: stopScript, cancelScript: cancelScript, argv: argv,
+    FIND: FIND, tryScript: tryScript, bootScript: bootScript, startScript: startScript, STEPS: STEPS, afterStep: afterStep,
+    stopScript: stopScript, cancelScript: cancelScript, argv: argv,
     clean: clean, startProblem: startProblem, stopProblem: stopProblem
 };

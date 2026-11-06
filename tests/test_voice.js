@@ -58,14 +58,38 @@ const run = (script, cmd, env) => spawnSync("sh", V.argv(script, cmd).slice(1), 
 const calls = () => fs.existsSync(path.join(dir, "calls")) ? fs.readFileSync(path.join(dir, "calls"), "utf8").trim().split("\n") : [];
 const reset = () => { for (const f of ["calls", "running", "silent", "crash"]) fs.rmSync(path.join(dir, f), { force: true }); };
 
+// starting goes step by step, the way Service.qml runs them
+const startAll = () => {
+    let step = "try", r, next;
+    for (let i = 0; i < 5; i++) {
+        r = run(V.STEPS[step](), "hex");
+        next = V.afterStep(step, r.status);
+        if (!next.step) return { r: r, next: next };
+        step = next.step;
+    }
+};
 reset();
-let r = run(V.startScript(), "hex");
-eq(r.status, 0, "start: succeeds, also when Hex was not running (it is started first)");
+let s0 = startAll(), r = s0.r;
+ok(s0.next.listening, "start: succeeds, also when Hex was not running (it is started first)");
 eq(calls().join(" | "), "dictation start | start | dictation start", "start: tries, starts Hex, tries again");
 reset(); fs.writeFileSync(path.join(dir, "running"), "");
-r = run(V.startScript(), "hex");
-eq(r.status, 0, "start: succeeds at once when Hex runs");
+s0 = startAll();
+ok(s0.next.listening, "start: succeeds at once when Hex runs");
 eq(calls().join(" | "), "dictation start", "start: one call when Hex runs");
+eq(JSON.stringify(V.afterStep("try", 127)), '{"fail":true}', "start: not installed fails at once");
+eq(JSON.stringify(V.afterStep("start", 1)), '{"fail":true}', "start: the last try failing fails");
+
+// every step is hex itself (or timeout waiting for it): stopping the step stops hex, with no child left
+for (const step of Object.keys(V.STEPS)) {
+    const slow = fs.mkdtempSync(path.join(os.tmpdir(), "pawmpt-slow-"));
+    fs.writeFileSync(path.join(slow, "hex"), "#!/bin/sh\nsleep 3\necho recording > " + JSON.stringify(path.join(slow, "rec")) + "\n", { mode: 0o755 });
+    const { spawn } = require("child_process");
+    const p = spawn("sh", V.argv(V.STEPS[step](), path.join(slow, "hex")).slice(1), { stdio: "ignore" });
+    spawnSync("sleep", ["0.5"]);
+    p.kill("SIGTERM");
+    spawnSync("sleep", ["3.5"]);
+    ok(!fs.existsSync(path.join(slow, "rec")), "stopping the " + step + " step leaves nothing behind that still starts recording");
+}
 
 reset();
 r = run(V.stopScript(), "hex");

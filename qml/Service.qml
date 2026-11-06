@@ -619,7 +619,8 @@ Item {
     Process {
         id: mkdir
         running: true
-        command: ["mkdir", "-p", "-m", "700", "--", root.stateDir, root.configDir, root.charactersDir]
+        // private, also when the folders are left over from an older version with looser permissions
+        command: ["sh", "-c", 'mkdir -p -m 700 -- "$@" && chmod 700 -- "$@"', "sh", root.stateDir, root.configDir, root.charactersDir]
         onExited: { moveOld.running = true; root.refreshCharacters() }
     }
     // the pictures you added under the old name are copied over, never over ones that are already here

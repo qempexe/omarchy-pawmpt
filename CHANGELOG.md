@@ -4,6 +4,18 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.5] - 2026-11-06
+
+### Security
+
+- Cancel while voice was starting could still leave Hex's first `hex dictation start`
+  running: it was a child of the step Pawmpt stopped, and outlived it. If it was slow to
+  get through, it could begin recording after the cancel, with Pawmpt idle. Each step of
+  starting to record is now its own process, and that process is hex itself, so stopping
+  a step stops hex, and Hex is told to cancel only once it is gone.
+- When the shell reloads while asking by voice, Hex is told to cancel a moment later, in
+  case the step that was running got the start through.
+
 ## [1.0.4] - 2026-11-06
 
 ### Security
@@ -89,6 +101,7 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.0.5]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.1...v1.0.2

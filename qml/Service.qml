@@ -560,7 +560,7 @@ Item {
             reply = ""; replyOk = true; activity = []
             voiceNote = "Waking Hex up…"
             voiceState = "starting"
-            voiceStep("try")
+            voiceStep("check")
         } else if (voiceState === "listening") {
             if (mode === "toggle" || mode === "stop") voiceStopNow()
         }
@@ -606,8 +606,35 @@ Item {
     }
     property bool voiceCancelled: false
     Timer { id: voiceMaxTimer; onTriggered: if (root.voiceState === "listening") root.voiceStopNow() }
+    // While listening, Hex is asked every two seconds whether it still records: its shortcut can finish
+    // the recording, and Hex can stop or quit. Pawmpt then says so instead of showing it listens.
+    // Two answers in a row are needed, so a start Hex has not picked up yet is not taken for an end.
+    property int voiceIdleSeen: 0
+    Timer {
+        id: voiceWatch
+        interval: 2000
+        repeat: true
+        running: root.voiceState === "listening"
+        onRunningChanged: root.voiceIdleSeen = 0
+        onTriggered: if (!voiceWatchProc.running) {
+            voiceWatchProc.command = Voice.argv(Voice.checkScript(), root.voiceHex)
+            voiceWatchProc.running = true
+        }
+    }
+    Process {
+        id: voiceWatchProc
+        stdout: StdioCollector { id: voiceWatchOut }
+        onExited: (code) => {
+            if (root.voiceState !== "listening") return
+            const gone = code === 3 || (code === 0 && Voice.finished(voiceWatchOut.text))
+            root.voiceIdleSeen = gone ? root.voiceIdleSeen + 1 : 0
+            if (root.voiceIdleSeen < 2) return
+            root.voiceFail(code === 3 ? "Hex stopped while I was listening. Start it again, then ask me." : Voice.ENDED)
+        }
+    }
     Process {
         id: voiceStart
+        stdout: StdioCollector { id: voiceStartOut }
         stderr: StdioCollector { id: voiceStartErr }
         onExited: (code) => {
             if (root.voiceCancelled) {
@@ -616,8 +643,9 @@ Item {
                 return
             }
             if (root.voiceState !== "starting") return
-            const next = Voice.afterStep(root.voiceStepNow, code)
+            const next = Voice.afterStep(root.voiceStepNow, code, voiceStartOut.text)
             if (next.step) { Qt.callLater(root.voiceStep, next.step); return }
+            if (next.busy) { root.voiceFail("Hex is already recording. Finish that dictation first, then ask me."); return }
             if (next.fail) { root.voiceFail(Voice.startProblem(code, voiceStartErr.text)); return }
             root.voiceNote = "Listening… say it, then click the mic (or run voice again) to send."
             root.voiceState = "listening"

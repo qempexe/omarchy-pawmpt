@@ -73,10 +73,10 @@ const reset = (...on) => { for (const f of ["calls", "running", "rec", "new", "n
 
 // ---- starting, step by step, the way Service.qml runs them ----
 const startAll = () => {
-    let step = "try", r, next;
+    let step = "check", r, next;
     for (let i = 0; i < 6; i++) {
         r = run(V.STEPS[step](), "hex");
-        next = V.afterStep(step, r.status);
+        next = V.afterStep(step, r.status, r.stdout);
         if (!next.step) return { r: r, next: next };
         step = next.step;
     }
@@ -84,14 +84,25 @@ const startAll = () => {
 reset();
 let s0 = startAll(), r = s0.r;
 ok(s0.next.listening && has("rec"), "start: records, also when Hex was not running (it is started first)");
-eq(calls().join(" | "), "dictation start | start | dictation start", "start: tries, starts Hex, tries again");
+eq(calls().join(" | "), "status --json | start | dictation start", "start: checks, starts Hex, starts recording");
 reset("running");
 s0 = startAll();
 ok(s0.next.listening && has("rec"), "start: records at once when Hex runs");
-eq(calls().join(" | "), "dictation start", "start: one call when Hex runs");
+eq(calls().join(" | "), "status --json | dictation start", "start: a check and one start when Hex runs");
+reset("running", "rec");
+s0 = startAll();
+ok(s0.next.busy, "start: Hex already recording (a dictation of your own) is left alone");
+eq(calls().join(" | "), "status --json", "start: and nothing is sent to it");
+eq(JSON.stringify(V.afterStep("check", 127, "")), '{"fail":true}', "start: not installed fails at the check");
+eq(JSON.stringify(V.afterStep("check", 1, "")), '{"step":"try"}', "start: a check that fails otherwise goes on to try");
+eq(JSON.stringify(V.afterStep("check", 0, "not json")), '{"step":"try"}', "start: unreadable status goes on to try");
 eq(JSON.stringify(V.afterStep("try", 127)), '{"fail":true}', "start: not installed fails at once");
 eq(JSON.stringify(V.afterStep("start", 1)), '{"fail":true}', "start: the last try failing fails");
-ok(V.DELIVERS.try && V.DELIVERS.start && !V.DELIVERS.boot, "only try and start can get a start through");
+ok(V.recording('{"capture":{"state":"recording"}}') && !V.recording('{"capture":{"state":"transcribing"}}') && !V.recording("{}") && !V.recording(""), "recording: only a capture that records");
+ok(V.finished('{"capture":{"state":"idle"}}') && V.finished('{"capture":{"state":"transcribing"}}'), "finished: idle or transcribing");
+ok(!V.finished('{"capture":{"state":"recording"}}') && !V.finished('{"capture":{"state":"unknown"}}') && !V.finished("{}") && !V.finished("garbage"), "finished: never guessed from missing or odd output");
+eq(V.stopProblem(1, "", "hex: dictation isn't recording; nothing to print"), V.ENDED, "stop: a recording Hex already ended says so");
+ok(V.DELIVERS.try && V.DELIVERS.start && !V.DELIVERS.check && !V.DELIVERS.boot, "only try and start can get a start through");
 
 // every step is hex itself (or timeout waiting for it): stopping the step stops hex, with no child left
 for (const step of Object.keys(V.STEPS)) {

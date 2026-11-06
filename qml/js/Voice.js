@@ -9,22 +9,51 @@
 const FIND = 'h="$1"; command -v "$h" >/dev/null 2>&1 || { [ -x "$HOME/.local/bin/hex" ] && h="$HOME/.local/bin/hex"; }; '
     + 'command -v "$h" >/dev/null 2>&1 || { echo "Hex is not installed" >&2; exit 127; }; ';
 
-// Starting to record takes up to three steps, each its own process:
+// Starting to record takes up to four steps, each its own process:
+//   check  `hex status --json`: when Hex is already recording (a dictation of your own, from its
+//          shortcut), Pawmpt leaves it alone instead of taking it over and asking with your words
 //   try    `hex dictation start`
 //   boot   when Hex is not running (or not listening): `hex start`, which waits until it answers
 //   start  `hex dictation start` once more
 // Every step ends in exec, so the process Pawmpt runs is hex itself (or timeout, which waits for hex):
 // when Cancel stops a step, there is no child left behind that could still start recording after it.
+function checkScript() { return FIND + 'exec timeout 15 "$h" status --json 2>/dev/null'; }
 function tryScript() { return FIND + 'exec "$h" dictation start >/dev/null 2>&1'; }
 function bootScript() { return FIND + 'exec timeout 25 "$h" start >/dev/null 2>&1'; }
 function startScript() { return FIND + 'exec "$h" dictation start >/dev/null'; }
-const STEPS = { "try": tryScript, boot: bootScript, start: startScript };
+const STEPS = { check: checkScript, "try": tryScript, boot: bootScript, start: startScript };
 // the steps that may have got a start through to Hex, so a cancel during them has something to drop
 const DELIVERS = { "try": true, start: true };
 
-// what comes after a start step ended with this exit code:
-// { listening: true }, { fail: true } (the code says why), or { step: <the next step> }
-function afterStep(step, code) {
+// whether `hex status --json` says Hex is recording right now (unreadable or older output: no)
+function recording(statusJson) {
+    try {
+        const s = JSON.parse(String(statusJson || ""));
+        return !!s && !!s.capture && s.capture.state === "recording";
+    } catch (e) {
+        return false;
+    }
+}
+
+// whether `hex status --json` says plainly that nothing is recording: idle, or already transcribing.
+// Missing or unreadable output says nothing, so it is never taken for finished.
+function finished(statusJson) {
+    try {
+        const s = JSON.parse(String(statusJson || ""));
+        return !!s && !!s.capture && (s.capture.state === "idle" || s.capture.state === "transcribing");
+    } catch (e) {
+        return false;
+    }
+}
+
+// what comes after a start step ended with this exit code (and, for check, this output):
+// { listening: true }, { fail: true } (the code says why), { busy: true }, or { step: <the next step> }
+function afterStep(step, code, out) {
+    if (step === "check") {
+        if (code === 127) return { fail: true };
+        if (code === 0 && recording(out)) return { busy: true };
+        return code === 3 ? { step: "boot" } : { step: "try" };
+    }
     if (step === "try") return code === 0 ? { listening: true } : code === 127 ? { fail: true } : { step: "boot" };
     if (step === "boot") return code === 127 ? { fail: true } : { step: "start" };
     return code === 0 ? { listening: true } : { fail: true };
@@ -71,6 +100,10 @@ function startProblem(code, err) {
     return "Hex would not start listening" + (e ? ": " + e : ". Is it running, and not disabled?");
 }
 
+// a recording Hex ended on its own: its shortcut also finishes one a command started, and then Hex
+// pastes the words where you are, as it always does
+const ENDED = "Hex finished that recording itself (its shortcut ends one too), so it pasted the words where you were.";
+
 // the words for a drop that did not work, or null when nothing is left recording
 function dropProblem(code, err) {
     if (code === 0) return null;
@@ -85,12 +118,13 @@ function stopProblem(code, text, err) {
     if (code === 124) return "Hex took too long to turn that into text.";
     if (code === 127) return startProblem(127, err);
     const e = oneLine(err);
+    if (/isn't recording|not recording|not-recording/.test(e)) return ENDED;
     return "Hex could not turn that into text" + (e ? ": " + e : ".");
 }
 
 if (typeof module !== "undefined") module.exports = {
-    FIND: FIND, tryScript: tryScript, bootScript: bootScript, startScript: startScript,
-    STEPS: STEPS, DELIVERS: DELIVERS, afterStep: afterStep,
+    FIND: FIND, checkScript: checkScript, tryScript: tryScript, bootScript: bootScript, startScript: startScript,
+    STEPS: STEPS, DELIVERS: DELIVERS, recording: recording, finished: finished, ENDED: ENDED, afterStep: afterStep,
     stopScript: stopScript, dropScript: dropScript, lateDropScript: lateDropScript, argv: argv,
     clean: clean, startProblem: startProblem, stopProblem: stopProblem, dropProblem: dropProblem
 };

@@ -4,6 +4,31 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.6] - 2026-11-06
+
+### Security
+
+- Cancel works on Hex 3.3, which has no `hex dictation cancel`: the recording went on
+  after Cancel, with Pawmpt idle. It is now stopped with `hex dictation stop --print`,
+  which never pastes, and the words are thrown away. A Hex with cancel still uses it.
+- A drop that fails is no longer ignored: Pawmpt says Hex may still be recording, and how
+  to stop it.
+- Only a recording Pawmpt may have started is dropped. Cancel while transcribing, or
+  before a start could reach Hex, drops nothing, so it can't end a dictation of your own.
+- A dictation of your own that is already recording is left alone, instead of Pawmpt
+  taking it over and asking the agent with your words.
+- Turning voice off, or hiding Pawmpt, drops the recording, so it never goes on where you
+  can't see it.
+- While listening, Pawmpt notices when Hex's shortcut ends the recording (Hex then pastes
+  the words where you are) or when Hex stops, and says so instead of showing it listens.
+
+### Fixed
+
+- Starting voice while the last recording is still being stopped says so, instead of
+  doing nothing.
+- Stopping and dropping a recording use the Hex command it was started with, even if the
+  setting changed in between.
+
 ## [1.0.5] - 2026-11-06
 
 ### Security
@@ -101,6 +126,7 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.0.6]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.2...v1.0.3

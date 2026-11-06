@@ -104,6 +104,9 @@ eq(r.status, 1, "stop: a failure is its exit code"); ok(V.stopProblem(r.status, 
 reset();
 r = run(V.cancelScript(), "hex");
 eq(r.status, 0, "cancel: succeeds"); eq(calls()[0], "dictation cancel", "cancel: asks to cancel");
+reset();
+r = run(V.lateCancelScript(), "hex");
+eq(r.status, 0, "late cancel: succeeds"); eq(calls()[0], "dictation cancel", "late cancel: asks to cancel");
 
 // hex that is not on the PATH: the installer's place is used, else a clear failure
 reset();

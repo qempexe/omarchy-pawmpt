@@ -781,7 +781,12 @@ Item {
         interval: 300
         onTriggered: if (!root.writeNow()) restart()      // not read yet: try again shortly
     }
-    Component.onDestruction: { Registry.clear(root); if (saveTimer.running) { saveTimer.stop(); root.writeNow() } }
+    Component.onDestruction: {
+        Registry.clear(root)
+        if (saveTimer.running) { saveTimer.stop(); root.writeNow() }
+        if (voiceState === "starting" || voiceState === "listening" || voiceStart.running)
+            Quickshell.execDetached(Voice.argv(Voice.lateCancelScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex"))
+    }
     // Surprise me: every hour or every day
     Timer {
         interval: 60000

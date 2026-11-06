@@ -28,6 +28,9 @@ function afterStep(step, code) {
 // stop and print what was said (Hex waits up to 60 s for it; this gives it 75)
 function stopScript() { return FIND + 'exec timeout 75 "$h" dictation stop --print'; }
 function cancelScript() { return FIND + 'exec "$h" dictation cancel'; }
+// when the shell reloads while asking by voice: the step it was on is killed with it, so Hex is told to
+// cancel a moment later, from a process of its own, in case that step got the start through first
+function lateCancelScript() { return FIND + 'sleep 2; exec "$h" dictation cancel'; }
 
 // argv for Process.command: sh -c <script> <name> <the hex command>
 function argv(script, hexCommand) {
@@ -66,6 +69,6 @@ function stopProblem(code, text, err) {
 
 if (typeof module !== "undefined") module.exports = {
     FIND: FIND, tryScript: tryScript, bootScript: bootScript, startScript: startScript, STEPS: STEPS, afterStep: afterStep,
-    stopScript: stopScript, cancelScript: cancelScript, argv: argv,
+    stopScript: stopScript, cancelScript: cancelScript, lateCancelScript: lateCancelScript, argv: argv,
     clean: clean, startProblem: startProblem, stopProblem: stopProblem
 };

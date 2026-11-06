@@ -16,7 +16,7 @@ import "js/Registry.js" as Registry
 Item {
     id: root
 
-    readonly property string version: "1.0.3"
+    readonly property string version: "1.0.4"
     readonly property string home: Quickshell.env("HOME") || ("/home/" + Quickshell.env("USER"))
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || home + "/.config") + "/pawmpt"
     readonly property string charactersDir: configDir + "/characters"

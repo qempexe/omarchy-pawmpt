@@ -36,6 +36,13 @@ The bubble shows each step as it happens (› bash: git status, › read: src/ma
 
 **Send when I stop speaking** off puts the text in the question box first, **Stop listening after** sends for you if you forget, and **Hex command** is for when Hex is not on the PATH (`~/.local/bin/hex` is tried anyway). If Hex is not running, Pawmpt starts it and tries again.
 
+Pawmpt ends only the recording it started:
+
+- **Cancel** (`voice cancel`) drops it. Hex 3.3 and later have no cancel, as every dictation there finishes, so Pawmpt stops it with `hex dictation stop --print`, which never pastes, and throws the words away. Hex keeps them in its History as Printed. If Hex can't stop it, Pawmpt says so, and how to stop it yourself.
+- **Turning voice off, or hiding Pawmpt,** drops it too, so it never keeps recording where you can't see it. A shell reload drops it a moment later.
+- **A dictation of your own already recording** is left alone: Pawmpt asks you to finish it first instead of taking your words.
+- **Hex's own shortcut** also finishes a recording Pawmpt started, and Hex then pastes the words where you are, as usual. Pawmpt notices within a few seconds and says so, and it does the same when Hex stops.
+
 ### The wardrobe
 
 ![The wardrobe](screenshots/wardrobe.png)

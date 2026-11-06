@@ -532,6 +532,10 @@ Item {
     // when the setting changes in between
     property string voiceHex: "hex"
     function hexNow() { return settings.voiceCommand ? expand(settings.voiceCommand) : "hex" }
+    // turning voice off, or hiding Pawmpt, drops a recording on its way or going on: it never goes on
+    // where you can't see it
+    onVoiceOnChanged: if (!voiceOn && (voiceState === "starting" || voiceState === "listening")) voiceCancel()
+    onShownChanged: if (!shown && (voiceState === "starting" || voiceState === "listening")) voiceCancel()
 
     function voiceFail(message) {
         voiceMaxTimer.stop()

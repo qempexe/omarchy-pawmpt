@@ -36,32 +36,45 @@ eq(V.argv("S", undefined).slice(0, 4).join("|"), "sh|-c|S|pawmpt", "argv starts 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pawmpt-voice-"));
 const bin = path.join(dir, "bin"); fs.mkdirSync(bin);
 const state = path.join(dir, "state");
+// A stand-in for Hex. Files in the folder set what it is like: "running" (Hex runs), "rec" (it records),
+// "new" (Hex 3.3: no cancel, a usage error), "noprint" (too old for --print), "silent", "crash".
 fs.writeFileSync(path.join(bin, "hex"), `#!/bin/sh
-echo "$@" >> "${dir}/calls"
+d="${dir}"
+echo "$@" >> "$d/calls"
 case "$1 $2" in
+  "status --json")
+    [ -f "$d/running" ] || { echo "hex: Hex isn't running" >&2; exit 3; }
+    if [ -f "$d/rec" ]; then echo '{"version":4,"capture":{"state":"recording","recording":"dictation"}}'
+    else echo '{"version":4,"capture":{"state":"idle","recording":null}}'; fi
+    exit 0 ;;
   "dictation start")
-    if [ -f "${dir}/running" ]; then exit 0; fi
-    echo "error: Hex is not running" >&2; exit 1 ;;
-  "start dictation"|"start ") touch "${dir}/running"; exit 0 ;;
-esac
-case "$1" in
-  start) touch "${dir}/running"; exit 0 ;;
-  dictation)
-    case "$2" in
-      stop) if [ -f "${dir}/silent" ]; then exit 4; fi; if [ -f "${dir}/crash" ]; then echo "model missing" >&2; exit 1; fi; echo "what is the weather"; exit 0 ;;
-      cancel) echo cancelled >> "${dir}/calls"; exit 0 ;;
-    esac ;;
+    [ -f "$d/running" ] || { echo "hex: Hex isn't running" >&2; exit 3; }
+    touch "$d/rec"; exit 0 ;;
+  "dictation cancel")
+    if [ -f "$d/new" ]; then echo "error: invalid value 'cancel' for '<ACTION>'" >&2; exit 2; fi
+    rm -f "$d/rec"; echo cancelled >> "$d/calls"; exit 0 ;;
+  "dictation stop")
+    if [ "$3" = "--print" ] && [ -f "$d/noprint" ]; then echo "error: unexpected argument '--print' found" >&2; exit 2; fi
+    [ -f "$d/running" ] || { echo "hex: Hex isn't running" >&2; exit 3; }
+    if [ -f "$d/crash" ]; then echo "hex: couldn't transcribe it: model missing" >&2; exit 1; fi
+    [ -f "$d/rec" ] || { echo "hex: dictation isn't recording; nothing to print" >&2; exit 1; }
+    rm -f "$d/rec"
+    if [ -f "$d/silent" ]; then echo "hex: no speech was recorded; nothing to print" >&2; exit 4; fi
+    echo "what is the weather"; exit 0 ;;
+  "start "|"start") touch "$d/running"; exit 0 ;;
 esac
 exit 2
 `, { mode: 0o755 });
 const run = (script, cmd, env) => spawnSync("sh", V.argv(script, cmd).slice(1), { encoding: "utf8", env: Object.assign({}, process.env, { HOME: dir, PATH: bin + ":" + process.env.PATH }, env || {}) });
 const calls = () => fs.existsSync(path.join(dir, "calls")) ? fs.readFileSync(path.join(dir, "calls"), "utf8").trim().split("\n") : [];
-const reset = () => { for (const f of ["calls", "running", "silent", "crash"]) fs.rmSync(path.join(dir, f), { force: true }); };
+const has = (f) => fs.existsSync(path.join(dir, f));
+const put = (...fs_) => { for (const f of fs_) fs.writeFileSync(path.join(dir, f), ""); };
+const reset = (...on) => { for (const f of ["calls", "running", "rec", "new", "noprint", "silent", "crash"]) fs.rmSync(path.join(dir, f), { force: true }); put(...on); };
 
-// starting goes step by step, the way Service.qml runs them
+// ---- starting, step by step, the way Service.qml runs them ----
 const startAll = () => {
     let step = "try", r, next;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
         r = run(V.STEPS[step](), "hex");
         next = V.afterStep(step, r.status);
         if (!next.step) return { r: r, next: next };
@@ -70,14 +83,15 @@ const startAll = () => {
 };
 reset();
 let s0 = startAll(), r = s0.r;
-ok(s0.next.listening, "start: succeeds, also when Hex was not running (it is started first)");
+ok(s0.next.listening && has("rec"), "start: records, also when Hex was not running (it is started first)");
 eq(calls().join(" | "), "dictation start | start | dictation start", "start: tries, starts Hex, tries again");
-reset(); fs.writeFileSync(path.join(dir, "running"), "");
+reset("running");
 s0 = startAll();
-ok(s0.next.listening, "start: succeeds at once when Hex runs");
+ok(s0.next.listening && has("rec"), "start: records at once when Hex runs");
 eq(calls().join(" | "), "dictation start", "start: one call when Hex runs");
 eq(JSON.stringify(V.afterStep("try", 127)), '{"fail":true}', "start: not installed fails at once");
 eq(JSON.stringify(V.afterStep("start", 1)), '{"fail":true}', "start: the last try failing fails");
+ok(V.DELIVERS.try && V.DELIVERS.start && !V.DELIVERS.boot, "only try and start can get a start through");
 
 // every step is hex itself (or timeout waiting for it): stopping the step stops hex, with no child left
 for (const step of Object.keys(V.STEPS)) {
@@ -91,22 +105,47 @@ for (const step of Object.keys(V.STEPS)) {
     ok(!fs.existsSync(path.join(slow, "rec")), "stopping the " + step + " step leaves nothing behind that still starts recording");
 }
 
-reset();
+// ---- stopping ----
+reset("running", "rec");
 r = run(V.stopScript(), "hex");
 eq(r.status, 0, "stop: succeeds"); eq(V.clean(r.stdout), "what is the weather", "stop: the words come out on stdout");
 eq(calls().join(" | "), "dictation stop --print", "stop: asks for --print");
-reset(); fs.writeFileSync(path.join(dir, "silent"), "");
+reset("running", "rec", "silent");
 r = run(V.stopScript(), "hex");
 eq(r.status, 4, "stop: no speech is exit 4"); eq(V.stopProblem(r.status, r.stdout, r.stderr), "I didn't hear anything.", "stop: no speech gives the message");
-reset(); fs.writeFileSync(path.join(dir, "crash"), "");
+reset("running", "rec", "crash");
 r = run(V.stopScript(), "hex");
 eq(r.status, 1, "stop: a failure is its exit code"); ok(V.stopProblem(r.status, r.stdout, r.stderr).endsWith("model missing"), "stop: a failure gives Hex's words");
-reset();
-r = run(V.cancelScript(), "hex");
-eq(r.status, 0, "cancel: succeeds"); eq(calls()[0], "dictation cancel", "cancel: asks to cancel");
-reset();
-r = run(V.lateCancelScript(), "hex");
-eq(r.status, 0, "late cancel: succeeds"); eq(calls()[0], "dictation cancel", "late cancel: asks to cancel");
+
+// ---- dropping a recording (Cancel), on every Hex ----
+reset("running", "rec");
+r = run(V.dropScript(), "hex");
+ok(r.status === 0 && !has("rec"), "drop, Hex with cancel: the recording is gone");
+eq(calls().join(" | "), "dictation cancel | cancelled", "drop, Hex with cancel: cancel is enough, nothing is transcribed");
+reset("running", "rec", "new");
+r = run(V.dropScript(), "hex");
+ok(r.status === 0 && !has("rec"), "drop, Hex 3.3 (no cancel): the recording is gone");
+eq(calls().join(" | "), "dictation cancel | dictation stop --print", "drop, Hex 3.3: stopped with --print, which never pastes");
+eq(r.stdout, "", "drop, Hex 3.3: the words are thrown away");
+reset("running", "rec", "new", "silent");
+r = run(V.dropScript(), "hex");
+ok(r.status === 0 && !has("rec"), "drop, Hex 3.3, nothing said: fine");
+reset("running", "new");
+r = run(V.dropScript(), "hex");
+eq(r.status, 0, "drop, Hex 3.3, nothing recording: fine");
+reset("new");
+r = run(V.dropScript(), "hex");
+eq(r.status, 0, "drop, Hex not running: fine, nothing can be recording");
+reset("running", "rec", "new", "crash");
+r = run(V.dropScript(), "hex");
+ok(r.status !== 0, "drop that fails: says so"); ok(V.dropProblem(r.status, r.stderr).startsWith("Hex may still be recording") && V.dropProblem(r.status, r.stderr).includes("model missing"), "drop that fails: with Hex's words, and how to stop it");
+reset("running", "rec", "new", "noprint");
+r = run(V.dropScript(), "hex");
+ok(r.status !== 0 && has("rec"), "drop, a Hex with neither cancel nor --print: reported, never pasted");
+eq(V.dropProblem(0, "x"), null, "a drop that worked is no problem");
+reset("running", "rec", "new");
+r = run(V.lateDropScript(), "hex");
+ok(r.status === 0 && !has("rec"), "late drop (shell reload): the recording is gone");
 
 // hex that is not on the PATH: the installer's place is used, else a clear failure
 reset();
@@ -115,11 +154,12 @@ r = spawnSync("sh", V.argv(V.stopScript(), "hex").slice(1), { encoding: "utf8", 
 eq(r.status, 127, "not installed: exit 127"); ok(r.stderr.includes("not installed"), "not installed: says so");
 fs.mkdirSync(path.join(bare, ".local", "bin"), { recursive: true });
 fs.copyFileSync(path.join(bin, "hex"), path.join(bare, ".local", "bin", "hex")); fs.chmodSync(path.join(bare, ".local", "bin", "hex"), 0o755);
+reset("running", "rec");
 r = spawnSync("sh", V.argv(V.stopScript(), "hex").slice(1), { encoding: "utf8", env: { HOME: bare, PATH: "/usr/bin:/bin" } });
 eq(r.status, 0, "~/.local/bin/hex is used when hex is not on the PATH");
 // a path with a space and shell characters is passed as one word
 const odd = path.join(dir, "my bin; echo hacked"); fs.mkdirSync(odd); fs.copyFileSync(path.join(bin, "hex"), path.join(odd, "hex")); fs.chmodSync(path.join(odd, "hex"), 0o755);
-reset();
+reset("running", "rec");
 r = run(V.stopScript(), path.join(odd, "hex"));
 eq(r.status, 0, "a command path with spaces and a semicolon still runs"); ok(!r.stdout.includes("hacked"), "and nothing in it is run as a command");
 

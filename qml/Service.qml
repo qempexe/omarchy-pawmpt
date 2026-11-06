@@ -528,6 +528,10 @@ Item {
     property string draft: ""               // what was said, when it goes in the question box instead of being sent
     property int draftSerial: 0
     readonly property bool voiceOn: settings.voice === "hex"
+    // the hex command a recording was started with: stopping and dropping it use the same one, even
+    // when the setting changes in between
+    property string voiceHex: "hex"
+    function hexNow() { return settings.voiceCommand ? expand(settings.voiceCommand) : "hex" }
 
     function voiceFail(message) {
         voiceMaxTimer.stop()
@@ -540,11 +544,17 @@ Item {
     // mode: toggle (the default), start, stop or cancel
     function voice(mode) {
         mode = String(mode || "toggle")
+        if (mode === "cancel") { if (voiceState !== "idle") voiceCancel(); return }
         if (!voiceOn) { voiceFail("Voice input is off. Turn it on under Settings > Agent > Voice."); return }
         if (voiceState === "idle") {
             if (mode !== "toggle" && mode !== "start") return
-            if (busy || agent.running || retryTimer.running || voiceStart.running || voiceStop.running || voiceAbort.running) return
+            if (voiceStart.running || voiceStop.running || voiceAbort.running) {
+                voiceFail("Hex is still finishing the last recording. Try again in a moment.")
+                return
+            }
+            if (busy || agent.running || retryTimer.running) return
             shown = true
+            voiceHex = hexNow()
             draft = ""
             voiceCancelled = false
             reply = ""; replyOk = true; activity = []
@@ -553,40 +563,45 @@ Item {
             voiceStep("try")
         } else if (voiceState === "listening") {
             if (mode === "toggle" || mode === "stop") voiceStopNow()
-            else if (mode === "cancel") voiceCancel()
-        } else if (mode === "cancel") voiceCancel()
+        }
     }
     function voiceStopNow() {
         voiceMaxTimer.stop()
         voiceNote = "Turning what you said into text…"
         voiceState = "transcribing"
-        voiceStop.command = Voice.argv(Voice.stopScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
+        voiceStop.command = Voice.argv(Voice.stopScript(), voiceHex)
         voiceStop.running = true
     }
-    // A start still on its way (Hex can take a while to come up) is stopped, and Hex is only told to
-    // cancel once that start is gone: cancelling first could let the start begin recording afterwards,
-    // with Pawmpt idle. Until the cancel is done, voice can't be started again.
+    // Cancel drops only a recording Pawmpt may have started: while listening, or while a step that can
+    // get a start through to Hex runs. A step still on its way is stopped first, and the recording is
+    // dropped once that step is gone: dropping first could let the start begin recording afterwards,
+    // with Pawmpt idle. While transcribing, the recording has already stopped, so nothing is dropped
+    // (that could end a dictation of your own). Until the drop is done, voice can't start again, and a
+    // drop that fails says so: Hex may still be recording.
     function voiceCancel() {
+        const was = voiceState
         voiceMaxTimer.stop()
         voiceNote = ""
         voiceState = "idle"
-        if (voiceStart.running) {
+        if (was === "starting" && voiceStart.running) {
+            voiceDropAfter = Voice.DELIVERS[voiceStepNow] === true
             voiceCancelled = true
             voiceStart.running = false
             return
         }
-        voiceAbortNow()
+        if (was === "listening") voiceDrop()
     }
+    property bool voiceDropAfter: false
     // runs one step of starting to record (qml/js/Voice.js has the steps)
     property string voiceStepNow: ""
     function voiceStep(step) {
         if (voiceState !== "starting" || voiceCancelled) return
         voiceStepNow = step
-        voiceStart.command = Voice.argv(Voice.STEPS[step](), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
+        voiceStart.command = Voice.argv(Voice.STEPS[step](), voiceHex)
         voiceStart.running = true
     }
-    function voiceAbortNow() {
-        voiceAbort.command = Voice.argv(Voice.cancelScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex")
+    function voiceDrop() {
+        voiceAbort.command = Voice.argv(Voice.dropScript(), voiceHex)
         voiceAbort.running = true
     }
     property bool voiceCancelled: false
@@ -595,7 +610,11 @@ Item {
         id: voiceStart
         stderr: StdioCollector { id: voiceStartErr }
         onExited: (code) => {
-            if (root.voiceCancelled) { root.voiceCancelled = false; root.voiceAbortNow(); return }
+            if (root.voiceCancelled) {
+                root.voiceCancelled = false
+                if (root.voiceDropAfter) root.voiceDrop()
+                return
+            }
             if (root.voiceState !== "starting") return
             const next = Voice.afterStep(root.voiceStepNow, code)
             if (next.step) { Qt.callLater(root.voiceStep, next.step); return }
@@ -622,7 +641,14 @@ Item {
             else { root.draft = said; root.draftSerial++; root.askRequested() }
         }
     }
-    Process { id: voiceAbort }
+    Process {
+        id: voiceAbort
+        stderr: StdioCollector { id: voiceAbortErr }
+        onExited: (code) => {
+            const problem = Voice.dropProblem(code, voiceAbortErr.text)
+            if (problem && root.voiceState === "idle") root.voiceFail(problem)
+        }
+    }
 
     // ---- saving and loading -----------------------------------------------------------------------
     Process {
@@ -784,8 +810,9 @@ Item {
     Component.onDestruction: {
         Registry.clear(root)
         if (saveTimer.running) { saveTimer.stop(); root.writeNow() }
-        if (voiceState === "starting" || voiceState === "listening" || voiceStart.running)
-            Quickshell.execDetached(Voice.argv(Voice.lateCancelScript(), settings.voiceCommand ? expand(settings.voiceCommand) : "hex"))
+        // a drop on its way is killed with the shell too, so it is done again
+        if (voiceState === "listening" || voiceAbort.running || (voiceStart.running && Voice.DELIVERS[voiceStepNow] === true))
+            Quickshell.execDetached(Voice.argv(Voice.lateDropScript(), voiceHex))
     }
     // Surprise me: every hour or every day
     Timer {

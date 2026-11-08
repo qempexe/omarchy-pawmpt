@@ -84,6 +84,7 @@ function argv(script, hexCommand) {
 // what was said, as one tidy line (Hex may add line breaks, or control characters)
 function clean(text) {
     return String(text === undefined || text === null ? "" : text)
+        .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
         .replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "")
         .replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 4000);
 }

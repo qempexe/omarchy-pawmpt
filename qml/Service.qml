@@ -16,7 +16,7 @@ import "js/Registry.js" as Registry
 Item {
     id: root
 
-    readonly property string version: "1.0.6"
+    readonly property string version: "1.1.0"
     readonly property string home: Quickshell.env("HOME") || ("/home/" + Quickshell.env("USER"))
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || home + "/.config") + "/pawmpt"
     readonly property string charactersDir: configDir + "/characters"
@@ -651,7 +651,7 @@ Item {
             if (next.step) { Qt.callLater(root.voiceStep, next.step); return }
             if (next.busy) { root.voiceFail("Hex is already recording. Finish that dictation first, then ask me."); return }
             if (next.fail) { root.voiceFail(Voice.startProblem(code, voiceStartErr.text)); return }
-            root.voiceNote = "Listening… say it, then click the mic (or run voice again) to send."
+            root.voiceNote = "Listening… say it, then click the mic (or run voice again) to finish."
             root.voiceState = "listening"
             voiceMaxTimer.interval = Math.max(5, root.settings.voiceMaxSeconds || 30) * 1000
             voiceMaxTimer.restart()
@@ -1002,6 +1002,8 @@ Item {
     property bool quickMode: false          // a quick action works on the selected text, or else the copied text
     property double lastAsked: 0
     property var activity: []               // what it is doing: tools it runs, files it reads
+    property var approvalQueue: []           // pending native permission requests awaiting clicks
+    readonly property var approval: approvalQueue.length ? approvalQueue[0] : null
     property string workDir: ""             // the folder the last request ran in
     property string usage: ""               // tokens and cost of the last answer
     property string pendingPrompt: ""
@@ -1017,6 +1019,7 @@ Item {
 
     function newChat() { sessionId = ""; history = []; reply = ""; activity = []; usage = ""; replySerial++ }
     function stop() {
+        approvalQueue = []
         if (agent.running) { stopped = true; agent.running = false }
         else if (retryTimer.running) {      // waiting to try again: stop that too
             retryTimer.stop()
@@ -1038,41 +1041,41 @@ Item {
     // you put {prompt} in it yourself. argvFor() says which: stdinPrompt is true when the question is to
     // be written to stdin.
     property bool stdinPrompt: true
+    property bool approvalProtocol: false
+    function bridgePath(name) {
+        return decodeURIComponent(String(Qt.resolvedUrl("../tools/" + name)).replace(/^file:\/\//, ""))
+    }
     // the presets of earlier versions, which put the question in the arguments
     readonly property var oldCommands: ({ "claude -p {prompt}": "claude -p", "gemini -p {prompt}": "gemini", "codex exec {prompt}": "codex exec -" })
     function argvFor(prompt) {
+        approvalProtocol = false
         const a = settings.agent || "opencode"
         const m = String(settings.agentModel || "").trim()
         if (a === "opencode") {
-            // opencode runs in the work folder itself (no --dir: not every version has it).
-            // A flag this opencode doesn't know is dropped and the question asked again.
-            const argv = ["opencode", "run"]
-            const add = (flag, value) => {
-                if (unsupported[flag]) return
-                argv.push(flag)
-                if (value !== undefined) argv.push(value)
-            }
-            add("--format", "json")
-            // opencode 2 has no --variant: the thinking effort goes on the model, as provider/model#effort
-            const v = String(settings.agentVariant || "")
-            const onModel = v !== "" && unsupported["--variant"] && m !== "" && m.indexOf("#") < 0
-            if (m) add("--model", onModel ? m + "#" + v : m)
-            if (settings.agentMode && settings.agentMode !== "build") add("--agent", settings.agentMode)
-            if (v) add("--variant", v)
-            if (settings.agentAuto) add("--auto")
-            // opencode 2 hands a run to its background service when that is up, and the service
-            // never sees the read-only rules below: a private server of its own does
-            else add("--standalone")
-            if (sessionId) add("--session", sessionId)
-            else add("--title", "Pawmpt")
+            approvalProtocol = true
             stdinPrompt = true
-            return argv
+            return ["python3", bridgePath("opencode_bridge.py")]
+        }
+        if (a === "codex") {
+            approvalProtocol = true
+            stdinPrompt = true
+            return ["python3", bridgePath("codex_bridge.py")]
+        }
+        if (a === "claude") {
+            approvalProtocol = true
+            stdinPrompt = true
+            return ["python3", bridgePath("claude_bridge.py")]
         }
         if (a === "ollama") { stdinPrompt = true; return ["ollama", "run", m || "llama3.2"] }
         let cmd = String(settings.agentCommand || "").trim()
         if (oldCommands[cmd] !== undefined) cmd = oldCommands[cmd]
         const parts = cmd.split(/\s+/).filter((p) => p.length > 0)
         if (parts.length === 0) return []
+        approvalProtocol = settings.agentProtocol === true
+        if (approvalProtocol) {
+            stdinPrompt = true
+            return parts
+        }
         // {prompt} in your own command is your choice to pass it as an argument
         let used = false
         const argv = parts.map((p) => { if (p.indexOf("{prompt}") >= 0) { used = true; return p.split("{prompt}").join(prompt) } return p })
@@ -1080,30 +1083,28 @@ Item {
         return argv
     }
 
-    // With Let it act off, opencode gets permissions that only let it read and search (and look things
-    // up online, with Look things up online on). Its Build agent allows everything by default, and
-    // `opencode run` only turns down what would ask, so without these it could still edit files and
-    // run commands. They go in through the
-    // environment (OPENCODE_CONFIG_CONTENT, loaded after your own config files), not the arguments.
-    // `opencode run --standalone` starts its own server with this environment (opencode 2).
-    readonly property var readOnlyRules: ({
-        "*": "deny", edit: "deny", bash: "deny", task: "deny", skill: "deny", external_directory: "deny",
-        doom_loop: "deny", question: "deny",
-        // keys and passwords stay out of reach, wherever the work folder is
-        read: { "*": "allow", "*.env": "deny", "*.env.*": "deny", "*.env.example": "allow",
-                "*/.ssh/*": "deny", "*/.gnupg/*": "deny", "*/.password-store/*": "deny", "*/.aws/*": "deny",
-                "*/.kube/*": "deny", "*/.docker/config.json": "deny", "*/.netrc": "deny", "*/.git-credentials": "deny",
-                "*/.local/share/opencode/auth.json": "deny", "*.pem": "deny", "*.key": "deny" },
-        glob: "allow", grep: "allow", list: "allow", lsp: "allow", todowrite: "allow", todoread: "allow",
-        webfetch: web, websearch: web, codesearch: web
-    })
-    readonly property string web: settings.agentWeb === true ? "allow" : "deny"
-    // The rules are given to the agents too. opencode adds an agent's own rules after the general
-    // ones, and the last rule that matches wins, so an opencode.json or .opencode folder in the work
-    // folder (a repository you cloned, say) could otherwise give its build agent everything back.
-    readonly property string readOnlyConfig: JSON.stringify({
-        permission: readOnlyRules,
-        agent: { build: { permission: readOnlyRules }, plan: { permission: readOnlyRules } }
+    readonly property var opencodeRules: {
+        const rules = [{ action: "*", resource: "*", effect: settings.agentAuto ? "allow" : "ask" }]
+        if (!settings.agentAuto) {
+            rules.push({ action: "question", resource: "*", effect: "allow" })
+            for (const action of ["glob", "grep", "list", "read"]) rules.push({ action, resource: "*", effect: "allow" })
+            rules.push({ action: "external_directory", resource: "*", effect: "ask" })
+            if (settings.agentWeb) {
+                for (const action of ["webfetch", "websearch", "codesearch"])
+                    rules.push({ action, resource: "*", effect: "allow" })
+            }
+        }
+        for (const resource of ["*.env", "*.env.*", "*/.ssh/*", "*/.gnupg/*", "*/.password-store/*",
+            "*/.aws/*", "*/.kube/*", "*/.docker/config.json", "*/.netrc", "*/.git-credentials",
+            "*/.local/share/opencode/auth.json", "*.pem", "*.key"])
+            rules.push({ action: "read", resource, effect: "deny" })
+        rules.push({ action: "read", resource: "*.env.example", effect: "allow" })
+        return rules
+    }
+    // OpenCode appends agent-specific policy after global rules, so set both built-in agents too.
+    readonly property string opencodeConfig: JSON.stringify({
+        permissions: opencodeRules,
+        agents: { build: { permissions: opencodeRules }, plan: { permissions: opencodeRules } }
     })
 
     // 1. which window is active, 2. which folder it is in, 3. ask
@@ -1132,7 +1133,7 @@ Item {
 
     // 0. what is selected and what is copied, 1. which window is active, 2. which folder it is in, 3. ask
     function send(prompt, quick) {
-        prompt = String(prompt || "").trim()
+        prompt = Prompt.question(prompt)
         if (!prompt || agent.running || retryTimer.running || winProbe.running || cwdProbe.running || selProbe.running || clipProbe.running) return
         // a long pause starts a fresh conversation
         if (!settings.remember || Date.now() - lastAsked > settings.rememberMinutes * 60 * 1000) { sessionId = ""; history = [] }
@@ -1226,7 +1227,7 @@ Item {
         rawOut = ""
         errText = ""
         agent.workingDirectory = workDir
-        agent.environment = (argv[0] === "opencode" && !settings.agentAuto) ? ({ OPENCODE_CONFIG_CONTENT: readOnlyConfig }) : ({})
+        agent.environment = settings.agent === "opencode" ? ({ OPENCODE_CONFIG_CONTENT: opencodeConfig }) : ({})
         // the question is written to stdin once it has started, then stdin is closed (see onStarted)
         agentInput = stdinPrompt ? lastPrompt : ""
         agent.stdinEnabled = true
@@ -1234,6 +1235,7 @@ Item {
         agent.running = true
     }
     function finish(ok, text) {
+        approvalQueue = []
         const answered = ok && !stopped && String(text || "").trim() !== "" && text !== "(no answer)" && text !== "Done."
         busy = false
         replyOk = ok
@@ -1268,10 +1270,35 @@ Item {
         return (st.status === "error" ? "✗ " : "› ") + (part.tool || "tool") + (what ? ": " + String(what).split("\n")[0].slice(0, 90) : "")
     }
     function onLine(line) {
-        if (!jsonMode) { rawOut += line + "\n"; reply = clean(rawOut).slice(-6000); return }
         let e = null
         try { e = JSON.parse(line) } catch (x) { e = null }
+        if (approvalProtocol && e && e.pawmpt === "text") {
+            const chunk = String(e.text || "")
+            if (chunk) { reply += chunk; reply = reply.slice(-6000) }
+            return
+        }
+        if (approvalProtocol && e && e.pawmpt === "session") {
+            const id = String(e.id || "")
+            // Only OpenCode sessions are resumed through this slot. Codex thread IDs
+            // have a different format and Codex uses its own history on each request.
+            if (settings.agent === "opencode" && /^ses_[A-Za-z0-9_-]{1,128}$/.test(id)) sessionId = id
+            return
+        }
+        if (approvalProtocol && e && e.pawmpt === "permission") {
+            queueApproval({ id: String(e.id || ""), title: String(e.title || "Permission needed"),
+                detail: String(e.detail || ""), adapter: "custom",
+                allowAll: settings.agent === "claude" || (settings.agent === "codex" && e.allowAll === true) })
+            return
+        }
+        if (!jsonMode) { rawOut += line + "\n"; reply = clean(rawOut).slice(-6000); return }
         if (!e || typeof e !== "object") { if (line.trim()) note(clean(line).slice(0, 120)); return }
+        // Normalized approval events from agent adapters use this shape. Keep provider payload
+        // data opaque; the adapter owns the protocol-specific response.
+        if (e.type === "pawmpt.permission") {
+            queueApproval({ id: String(e.id || ""), title: String(e.title || "Permission needed"),
+                detail: String(e.detail || ""), adapter: String(e.adapter || "") })
+            return
+        }
         // only an id that looks like one: it goes back to opencode, and to a terminal for Open in opencode
         if (e.sessionID && settings.remember && /^[A-Za-z0-9_-]{1,128}$/.test(String(e.sessionID))) sessionId = String(e.sessionID)
         const part = e.part || {}
@@ -1286,6 +1313,27 @@ Item {
         } else if (e.type === "error") {
             const er = e.error || {}
             errText = String((er.data && er.data.message) || er.message || er.name || "error")
+        }
+    }
+    function queueApproval(item) {
+        if (!item.id || approvalQueue.some((x) => x.id === item.id)) return
+        approvalQueue = approvalQueue.concat([item])
+    }
+    function answerApproval(allow, allowAll) {
+        if (!approval) return
+        const pending = approval
+        const approveAll = allow === true && allowAll === true && pending.allowAll === true &&
+            (settings.agent === "claude" || settings.agent === "codex")
+        const toAnswer = approveAll ? approvalQueue : [pending]
+        approvalQueue = approveAll ? [] : approvalQueue.slice(1)
+        // The bridge protocol is JSONL so the selected agent adapter can map this decision to
+        // its own API (OpenCode, Claude Code, Codex, or a custom adapter).
+        if (agent.running && approvalProtocol && agent.stdinEnabled) {
+            for (let i = 0; i < toAnswer.length; i++) {
+                const reply = { pawmpt: "permission_reply", id: toAnswer[i].id, allow: allow === true }
+                if (approveAll && i === 0) reply.allowAll = true
+                agent.write(JSON.stringify(reply) + "\n")
+            }
         }
     }
     // Copying: wl-copy reads the text from stdin, so it is never in a command's arguments.
@@ -1312,8 +1360,20 @@ Item {
     property string agentInput: ""
     Process {
         id: agent
-        // the question on stdin, then end of input, so the agent starts right away
-        onStarted: { if (root.agentInput !== "") agent.write(root.agentInput); root.agentInput = ""; agent.stdinEnabled = false }
+        // Normal CLIs get a single prompt and EOF. Approval adapters keep stdin open for replies.
+        onStarted: {
+            if (root.approvalProtocol) {
+                agent.write(JSON.stringify({ pawmpt: "request", prompt: root.agentInput,
+                    question: root.lastQuestion,
+                    session: root.sessionId, model: root.settings.agentModel || "",
+                    agent: root.settings.agentMode || "build", variant: root.settings.agentVariant || "" }) + "\n")
+                root.agentInput = ""
+            } else {
+                if (root.agentInput !== "") agent.write(root.agentInput)
+                root.agentInput = ""
+                agent.stdinEnabled = false
+            }
+        }
         stdout: SplitParser { onRead: (line) => root.onLine(line) }
         stderr: StdioCollector { id: agentErr }
         onExited: (code) => {

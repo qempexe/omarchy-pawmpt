@@ -464,6 +464,14 @@ Scope {
     function clickAction(name) {
         wake()
         if (!svc) return
+        // While a request is running, the default Ask click shows or hides its live status bubble.
+        // It must not open the prompt, since send() rejects a second request while busy.
+        if (name === "ask" && busy) {
+            menuOpen = false
+            promptOpen = false
+            bubbleOpen = !bubbleOpen
+            return
+        }
         if (name === "ask") { menuOpen = false; promptOpen = !promptOpen; if (!promptOpen) bubbleOpen = false }
         else if (name === "menu") { promptOpen = false; menuOpen = !menuOpen }
         else { menuOpen = false; svc.perform(name) }
@@ -646,7 +654,7 @@ Scope {
                     }
                 }
 
-                // the microphone: starts listening, and sends what was said when it is clicked again
+                // the microphone: starts listening, then finishes the dictation when clicked again
                 Rectangle {
                     id: micBtn
                     readonly property bool live: !!root.svc && root.svc.voiceState === "listening"
@@ -791,6 +799,22 @@ Scope {
                             selectionColor: root.edge
                             font.pixelSize: (root.cfg.bubbleFont || 13) * root.fs
                         }
+                        Rectangle {
+                            width: bubbleCol.width
+                            visible: !!root.svc && !!root.svc.approval
+                            radius: 8 * root.fs
+                            color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.1)
+                            border.color: root.accent
+                            height: visible ? approvalCol.implicitHeight + 16 * root.fs : 0
+                            Column {
+                                id: approvalCol
+                                anchors.fill: parent
+                                anchors.margins: 8 * root.fs
+                                spacing: 4 * root.fs
+                                Text { width: parent.width; text: root.svc && root.svc.approval ? root.svc.approval.title : ""; color: root.ink; font.bold: true; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+                                Text { width: parent.width; text: root.svc && root.svc.approval ? root.svc.approval.detail : ""; color: root.ink; wrapMode: Text.Wrap; textFormat: Text.PlainText; font.family: "monospace"; font.pixelSize: 11 * root.fs }
+                            }
+                        }
                         Text {
                             width: bubbleCol.width
                             visible: text !== "" && !root.busy && root.cfg.showUsage !== false
@@ -818,7 +842,15 @@ Scope {
                             const s = root.svc
                             if (!s) return []
                             const out = []
-                            if (s.busy) out.push({ label: "Stop", act: () => s.stop() })
+                            if (s.busy) {
+                                if (s.approval) {
+                                    out.push({ label: "Allow once", act: () => s.answerApproval(true) })
+                                    if (s.approval.allowAll === true)
+                                        out.push({ label: "Allow all this run", act: () => s.answerApproval(true, true) })
+                                    out.push({ label: "Deny", act: () => s.answerApproval(false) })
+                                }
+                                out.push({ label: "Stop", act: () => s.stop() })
+                            }
                             else {
                                 out.push({ label: "Reply", act: () => { root.promptOpen = true } })
                                 if (s.reply) out.push({ label: "Copy", act: () => s.copyText(s.reply) })
@@ -832,7 +864,7 @@ Scope {
                                         out.push({ label: f.label, act: () => s.send(f.prompt) })
                                     }
                                 if (s.sessionId || s.history.length > 0) out.push({ label: "New chat", act: () => { s.newChat(); root.bubbleOpen = false } })
-                                if (s.sessionId) out.push({ label: "Open in opencode", act: () => s.openInTerminal() })
+                                if (s.sessionId && s.settings.agent === "opencode") out.push({ label: "Open in opencode", act: () => s.openInTerminal() })
                             }
                             return out
                         }

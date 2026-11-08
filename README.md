@@ -32,9 +32,9 @@ The bubble shows each step as it happens (› bash: git status, › read: src/ma
 
 1. Install Hex and set it up once: `curl -fsSL https://anoma.ly/hex/files/install-linux.sh | sh`, then `hex model install`.
 2. Settings › Agent › Voice › **Ask by voice** › Hex.
-3. Click the mic in the question box, give a click **Ask by voice** (Controls or Bar), or bind `omarchy-shell io.github.qempexe.pawmpt voice` to a key. The same click, key or mic sends what you said; `voice cancel` throws it away.
+3. Click the mic in the question box, give a click **Ask by voice** (Controls or Bar), or bind `omarchy-shell io.github.qempexe.pawmpt voice` to a key. By default the transcription opens in the question box for review; `voice cancel` throws it away.
 
-**Send when I stop speaking** off puts the text in the question box first, **Stop listening after** sends for you if you forget, and **Hex command** is for when Hex is not on the PATH (`~/.local/bin/hex` is tried anyway). If Hex is not running, Pawmpt starts it and tries again.
+By default, Hex puts the transcription in the question box for you to review before sending. Turn on **Send when I stop speaking** to send it immediately. **Stop listening after** ends the recording and follows that same choice. **Hex command** is for when Hex is not on the PATH (`~/.local/bin/hex` is tried anyway). If Hex is not running, Pawmpt starts it and tries again.
 
 Pawmpt ends only the recording it started:
 
@@ -114,11 +114,11 @@ Everything applies at once and is saved in `~/.local/state/omarchy-pawmpt/`. Eac
 | Controls | Left, right and middle click | Ask, Menu, Settings | |
 | | Drag it around, Remember where it was | on, on | |
 | | Drop it at the side to change screen | on | |
-| Agent | Agent | opencode | or Ollama, or your own command, which gets the question on stdin |
+| Agent | Agent | opencode | or Ollama, Claude Code, Codex, or your own command |
 | | Model | the agent's own default | searchable list of every model your providers offer |
 | | Agent mode | Build | or Plan, which only reads and suggests |
 | | Thinking effort | Model default | Low, Medium, High or Max |
-| | Let it act | off | runs commands and edits files without asking; off, it can only read and search your files |
+| | Let it act | off | automatically approves opencode actions; off, Pawmpt shows Allow once and Deny buttons |
 | | Look things up online | off | with Let it act off, lets it search the web and open pages |
 | | Answer style, Answer in | As it likes, any language | Short, Detailed, Step by step or Simple |
 | | Remember the conversation | on | a new chat after 45 minutes of quiet |
@@ -128,7 +128,7 @@ Everything applies at once and is saved in `~/.local/state/omarchy-pawmpt/`. Eac
 | | Quick actions | on | and one of your own |
 | | Copy the answer, Notify me | off, off | |
 | | Give up after, Try again when it fails | 300 s, never | |
-| | Ask by voice | Off | Hex, sending when you stop speaking |
+| | Ask by voice | Off | Hex, with review before sending by default |
 | Bubble | Width, Text size | 340 px, 13 | |
 | | Close after, Opens | never, where there is room | |
 | | Show what it is doing, tokens and folder, follow-up buttons | on, on, on | |
@@ -157,7 +157,7 @@ o.window({ tag = "pawmpt-window" }, { size = { 560, 680 } })
 - **The pal doesn't show after installing.** Restart the shell once with `omarchy restart shell`.
 - **The bar button does nothing.** It looks for Pawmpt's service through the bar, and through Pawmpt itself when the bar is a replacement that can't hand it over. If it still does nothing, restart the shell.
 - **It keeps thinking.** Check that `opencode run "hi"` answers in a terminal.
-- **It won't edit or run anything.** That is **Let it act** being off: opencode then may only read and search your files, whatever your own opencode config allows, so a task that must change files or run commands ends early. Turn it on to let it act.
+- **It pauses before an action.** With **Let it act** off, OpenCode asks Pawmpt to show Allow once and Deny buttons. Turn it on to auto-approve actions.
 - **It won't search the web.** With Let it act off that needs **Look things up online** too.
 - **Unrecognized flag.** opencode versions differ; Pawmpt leaves out a flag your opencode doesn't know and asks again.
 - **No models in the list.** Connect a provider with `opencode auth login`, then press **Refresh**.
@@ -170,9 +170,12 @@ o.window({ tag = "pawmpt-window" }, { size = { 560, 680 } })
 
 - **Network.** Pawmpt itself goes nowhere. Your question goes to the agent you picked, which talks to its own provider.
 - **What it reads.** The active window's title and folder, and what you selected or copied, are only read when you ask, only when that setting is on, and at most 64 KB of it.
-- **What Let it act off allows.** Reading and searching files, and nothing else: no commands, no edits, no other agents, no skills, nothing outside the work folder. Keys and passwords (`.env` files, `~/.ssh`, `~/.gnupg`, `~/.password-store`, `~/.aws`, `~/.kube`, `.netrc`, `.git-credentials`, `*.pem`, `*.key`, opencode's own `auth.json`) can't be read either. The web is off as well unless **Look things up online** is on, so nothing it read can leave in a page's address. These rules go to opencode in its environment, which outranks every config file but a system-wide managed one, and they are set for its agents too, so an `opencode.json` or `.opencode` folder in the work folder can't widen them. Each run gets a private opencode server (`--standalone`), so the rules hold while opencode's background service is running too.
-- **The work folder's own opencode setup.** opencode still loads the work folder's `opencode.json`, plugins and MCP servers when it starts there, the same as when you run it there yourself. For a repository you don't trust, set **Work in** to Home or a folder of your own.
+- **What Let it act off does.** Pawmpt sets OpenCode's permission policy to ask before actions and shows the request in the approval card. Project configuration, plugins, MCP servers, and policy changes can affect permissions; this is not an operating system sandbox. The model provider still receives the prompt and any context you enabled.
+- **Project trust.** OpenCode loads project configuration, plugins and MCP servers from the work folder. Those components run with your user account's access. Use **Work in** with a folder you trust, and review project extensions before running an agent there. Hex and custom agents also run as your user; configure them only with executables you trust. **Let it act** is off by default; turning it on auto-approves OpenCode actions.
 - **What other users can see.** Your question, the context and the answers never go in a command's arguments, which anyone on the computer can list: the agent gets the question on stdin, copying goes to `wl-copy` on stdin, and a notification only says that an answer is ready. The one exception is putting `{prompt}` in your own command.
+- **Approval buttons for a custom agent.** Turn on **Approval bridge** only when your command is an adapter for an agent that can pause for permission. Pawmpt uses a JSON Lines request/reply protocol described in [`tools/AGENT_APPROVAL_PROTOCOL.md`](tools/AGENT_APPROVAL_PROTOCOL.md). The adapter must translate Allow or Deny to that agent's own permission API; ordinary `claude -p` or `codex exec` commands do not speak this protocol by themselves.
+- **Approval buttons for Claude Code and Codex.** Select the named agent in Settings. Pawmpt connects Claude Code's permission-prompt MCP tool or Codex's app-server request channel to the same Allow once / Deny card. Their own settings can still pre-allow or deny specific actions before they reach Pawmpt.
+- **Codex desktop apps.** If Codex reports that a requested Strata, Brave, Firefox, Chromium, Foot or Glances launch failed because its sandbox cannot reach the display, Pawmpt offers an Allow once button to start only that app directly in your Omarchy desktop session. It does not retry the Codex turn outside its sandbox.
 
 ## Contributing
 

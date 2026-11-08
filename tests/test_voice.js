@@ -16,6 +16,7 @@ const V = sb.module.exports;
 
 // ---- the text and the messages ----
 eq(V.clean("  Hello,\n world \u001b[0m  "), "Hello, world", "what was said becomes one tidy line");
+eq(V.clean("say \u001b]0;fake title\u0007hello"), "say hello", "terminal title escape sequences are removed from transcription");
 eq(V.clean(null), "", "nothing said is empty");
 eq(V.clean("x".repeat(9000)).length, 4000, "what was said is limited to 4000 characters");
 ok(V.startProblem(127, "").includes("not installed") && V.startProblem(127, "").includes("anoma.ly/hex"), "a missing Hex says where to get it");
@@ -161,12 +162,17 @@ ok(r.status === 0 && !has("rec"), "late drop (shell reload): the recording is go
 // hex that is not on the PATH: the installer's place is used, else a clear failure
 reset();
 const bare = fs.mkdtempSync(path.join(os.tmpdir(), "pawmpt-nohex-"));
-r = spawnSync("sh", V.argv(V.stopScript(), "hex").slice(1), { encoding: "utf8", env: { HOME: bare, PATH: "/usr/bin:/bin" } });
+const timeoutPath = process.env.PATH.split(":").map((p) => path.join(p, "timeout")).find((p) => fs.existsSync(p));
+const isolatedBin = path.join(bare, "bin"); fs.mkdirSync(isolatedBin);
+if (timeoutPath) fs.symlinkSync(timeoutPath, path.join(isolatedBin, "timeout"));
+const rmPath = process.env.PATH.split(":").map((p) => path.join(p, "rm")).find((p) => fs.existsSync(p));
+if (rmPath) fs.symlinkSync(rmPath, path.join(isolatedBin, "rm"));
+r = spawnSync("/bin/sh", V.argv(V.stopScript(), "hex").slice(1), { encoding: "utf8", env: { HOME: bare, PATH: isolatedBin } });
 eq(r.status, 127, "not installed: exit 127"); ok(r.stderr.includes("not installed"), "not installed: says so");
 fs.mkdirSync(path.join(bare, ".local", "bin"), { recursive: true });
 fs.copyFileSync(path.join(bin, "hex"), path.join(bare, ".local", "bin", "hex")); fs.chmodSync(path.join(bare, ".local", "bin", "hex"), 0o755);
 reset("running", "rec");
-r = spawnSync("sh", V.argv(V.stopScript(), "hex").slice(1), { encoding: "utf8", env: { HOME: bare, PATH: "/usr/bin:/bin" } });
+r = spawnSync("/bin/sh", V.argv(V.stopScript(), "hex").slice(1), { encoding: "utf8", env: { HOME: bare, PATH: isolatedBin } });
 eq(r.status, 0, "~/.local/bin/hex is used when hex is not on the PATH");
 // a path with a space and shell characters is passed as one word
 const odd = path.join(dir, "my bin; echo hacked"); fs.mkdirSync(odd); fs.copyFileSync(path.join(bin, "hex"), path.join(odd, "hex")); fs.chmodSync(path.join(odd, "hex"), 0o755);

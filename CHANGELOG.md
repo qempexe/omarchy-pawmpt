@@ -4,6 +4,26 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-08
+
+### Added
+
+- OpenCode permission requests now appear in Pawmpt with Allow once and Deny buttons.
+- Native Claude Code and Codex adapters route their permission requests through Pawmpt.
+- Custom agents can use the documented JSON Lines approval bridge.
+- Codex can ask before starting an allowlisted desktop app when its sandbox cannot reach
+  the display; it does not rerun the agent outside its sandbox.
+
+### Changed
+
+- Hex dictation now goes to the question box for review before sending by default.
+- Selected text, clipboard contents, window context and prior answers are tagged as
+  untrusted reference data in the composed prompt. Direct questions are normalized and
+  length-limited before they are sent.
+- OpenCode's **Let it act** setting now uses its permission prompts when off and automatic
+  approval when on. The documentation describes these as app-level permissions, not an OS
+  sandbox.
+
 ## [1.0.6] - 2026-11-06
 
 ### Security
@@ -56,18 +76,13 @@ All notable changes to Pawmpt. The format follows
 
 ### Security
 
-- **Let it act** off holds on opencode 2 while its background service is running. `opencode
-  run` handed the question to that service, which never saw the read-only rules, so the
-  agent could still edit files and run commands. Each run now gets a private server that
-  has them.
-- An `opencode.json` or `.opencode` folder in the work folder, a repository you cloned for
-  example, can no longer give the agent back what Let it act off takes away: the rules are
-  set for its agents too, and opencode applies an agent's own rules last.
-- With Let it act off nothing goes online, unless **Look things up online** is on, so what
-  it read can't leave in a page's address.
-- With Let it act off, keys and passwords can't be read: `~/.ssh`, `~/.gnupg`,
-  `~/.password-store`, `~/.aws`, `~/.kube`, `.netrc`, `.git-credentials`, `*.pem`, `*.key`
-  and opencode's own `auth.json`, as well as `.env` files.
+- **Let it act** off passes restrictive opencode permission rules and starts a private
+  server for each run. These are app-level rules, not an operating system sandbox; they
+  cannot guarantee isolation from extensions, MCP servers, provider behavior, or changes
+  in opencode.
+- The rules deny common credential paths and file types, editing, command execution and
+  network tools by default. Pattern matching is best effort and cannot guarantee that
+  credentials are inaccessible or that nothing reaches the network.
 - Only a session id that looks like one is kept and passed on.
 
 ### Added
@@ -126,6 +141,7 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.1.0]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.6...v1.1.0
 [1.0.6]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.3...v1.0.4

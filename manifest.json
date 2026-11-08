@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.qempexe.pawmpt",
   "name": "Pawmpt",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "author": "qempexe",
   "license": "MIT",
   "description": "A little pal that lives on your desktop: pick a character or add your own, dress it in skins, and ask it things through an agent you choose.",
@@ -63,6 +63,7 @@
       "agent": "opencode",
       "agentModel": "",
       "agentCommand": "claude -p",
+      "agentProtocol": false,
       "agentMode": "build",
       "agentVariant": "",
       "agentAuto": false,
@@ -88,7 +89,7 @@
       "agentTimeout": 300,
       "agentRetries": 0,
       "voice": "off",
-      "voiceSend": true,
+      "voiceSend": false,
       "voiceMaxSeconds": 30,
       "voiceCommand": "hex",
       "bubbleWidth": 340,
@@ -453,10 +454,12 @@
         "options": [
           "opencode",
           "ollama",
+          "claude",
+          "codex",
           "custom"
         ],
         "defaultValue": "opencode",
-        "description": "Who answers. opencode and Ollama have to be installed; your command can be anything that prints an answer."
+        "description": "Who answers. Install the selected agent first. Claude Code and Codex use their native approval flows."
       },
       {
         "key": "agentModel",
@@ -471,6 +474,13 @@
         "label": "Command",
         "defaultValue": "claude -p",
         "description": "Your question goes to it on stdin. It runs without a shell, so no pipes or quotes. {prompt} in it puts the question in the command line instead, where other users on this computer can see it."
+      },
+      {
+        "key": "agentProtocol",
+        "type": "boolean",
+        "label": "Approval bridge",
+        "defaultValue": false,
+        "description": "For a command adapter that speaks Pawmpt's JSONL approval protocol. It receives a request on stdin and may send permission events on stdout; Allow and Deny replies go back on stdin."
       },
       {
         "key": "agentMode",
@@ -501,14 +511,14 @@
         "type": "boolean",
         "label": "Let it act",
         "defaultValue": false,
-        "description": "Runs commands and edits files without asking. Off: it can only read and search your files, and anything else is turned down, whatever your opencode config allows."
+        "description": "Automatically approves OpenCode actions, while still blocking reads of known credential files. Off: actions that need permission appear here with Allow once and Deny buttons. This is an agent permission policy, not an operating system sandbox."
       },
       {
         "key": "agentWeb",
         "type": "boolean",
         "label": "Look things up online",
         "defaultValue": false,
-        "description": "With Let it act off, lets it search the web and open pages. Off, nothing it reads leaves your computer except through the model itself: a page it opens could otherwise carry what it read away in its address."
+        "description": "Allows opencode's web search and page tools while Let it act is off. Prompts and page requests can send data to online services."
       },
       {
         "key": "agentPrefix",
@@ -689,14 +699,14 @@
           "hex"
         ],
         "defaultValue": "off",
-        "description": "Speak your question. Hex (anoma.ly/hex) is local voice dictation: Pawmpt tells it to start and stop recording and sends what you said. Install and set up Hex first, and keep it running. Then use Ask by voice on a click, the mic in the question box, or: omarchy-shell io.github.qempexe.pawmpt voice."
+        "description": "Speak your question. Hex (anoma.ly/hex) is local voice dictation. Pawmpt starts and stops recording; the transcription goes to the question box for review by default. Install and set up Hex first. Then use Ask by voice on a click, the mic in the question box, or: omarchy-shell io.github.qempexe.pawmpt voice."
       },
       {
         "key": "voiceSend",
         "type": "boolean",
         "label": "Send when I stop speaking",
-        "defaultValue": true,
-        "description": "Off puts what you said in the question box, so you can read and change it before you press Enter."
+        "defaultValue": false,
+        "description": "On sends the transcription right away. Off puts it in the question box so you can read and change it before pressing Enter."
       },
       {
         "key": "voiceMaxSeconds",
@@ -706,7 +716,7 @@
         "max": 120,
         "step": 5,
         "defaultValue": 30,
-        "description": "Seconds. If you forget to stop, it stops and sends for you."
+        "description": "Seconds. If you forget to stop, Pawmpt ends the recording; the transcription is sent only when Send when I stop speaking is on."
       },
       {
         "key": "voiceCommand",

@@ -4,6 +4,39 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-11
+
+### Security
+
+- Claude Code can no longer read the files that hold keys and passwords: it gets deny rules
+  for them, and Pawmpt turns down any request for one. In 1.1.0 it could read a `.env` file
+  in the work folder without asking.
+- Codex runs in a permissions profile that can't read those files, by a command either. In
+  1.1.0 an approved command could read `~/.ssh`.
+- A command that names one of those files is always asked on its own, with a warning.
+  **Allow all this run** never covers it, and with opencode it asks with **Let it act** on too.
+- More files are kept out of reach: `.npmrc`, `.pypirc`, the GitHub CLI's `hosts.yml`,
+  `rclone.conf`, the keyrings, and Codex's and Claude Code's own sign-in files.
+- The approval card shows a request as plain text without control and direction characters,
+  says how much of a long one isn't shown, and ignores a click in the first moment after it
+  appears. More than twelve requests waiting at once are denied.
+- A request that can't reach Pawmpt is denied, and a reply for a request that wasn't asked is
+  ignored.
+
+### Fixed
+
+- opencode 1.x works again; 1.1.0 stopped with "server did not become ready".
+- An opencode answer is no longer cut short while a permission card is open or the model is
+  slow, and "Agent action" lines no longer show up in it.
+- A second Allow or Deny sent right after the first is no longer lost.
+- Stop, the time limit, turning the plugin off and a shell restart stop the agent and
+  everything it started. Before, the bridge could wait forever and leave `opencode serve`,
+  Claude Code or Codex running.
+- Claude Code shows its steps and its answer as they come, and the tokens and cost under it.
+- Codex shows its steps and the tokens, and says so when it stops before answering.
+- A missing agent says which one to install instead of failing silently.
+- The About tab shows the right version.
+
 ## [1.1.0] - 2026-11-08
 
 ### Added
@@ -141,6 +174,7 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.1.1]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.6...v1.1.0
 [1.0.6]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.4...v1.0.5

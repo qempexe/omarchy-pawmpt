@@ -16,7 +16,7 @@ import "js/Registry.js" as Registry
 Item {
     id: root
 
-    readonly property string version: "1.1.0"
+    readonly property string version: "1.0.6"
     readonly property string home: Quickshell.env("HOME") || ("/home/" + Quickshell.env("USER"))
     readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || home + "/.config") + "/pawmpt"
     readonly property string charactersDir: configDir + "/characters"
@@ -1083,28 +1083,41 @@ Item {
         return argv
     }
 
+    // opencode's permission rules, which tools/opencode_bridge.py's server inherits in OPENCODE_CONFIG_CONTENT
+    // (loaded after your own config files). They are written the way opencode 1 reads them, which
+    // opencode 2 also reads; the last rule that matches wins. Let it act off: reading and searching are
+    // fine, anything else asks you first (Allow once / Deny in the bubble), and questions back to you
+    // are turned down, as there is nowhere to answer them. Let it act on: everything is allowed. Either
+    // way keys and passwords can't be read. These are opencode's own rules, not a sandbox.
+    // The same list goes to the Claude Code and Codex bridges with each request (tools/bridge_common.py
+    // has a copy for a bridge run without one).
+    readonly property var secretFiles: ["*.env", "*.env.*", "*/.ssh/*", "*/.gnupg/*", "*/.password-store/*",
+        "*/.aws/*", "*/.kube/*", "*/.docker/config.json", "*/.netrc", "*/.git-credentials", "*/.npmrc", "*/.pypirc",
+        "*/.config/gh/hosts.yml", "*/.config/rclone/rclone.conf", "*/.local/share/opencode/auth.json",
+        "*/.codex/auth.json", "*/.claude/.credentials.json", "*/.local/share/keyrings/*", "*.pem", "*.key"]
+    // commands that name one of them ask first, also with Let it act on (a guess from the command's words)
+    readonly property var secretCommands: ["*.ssh/*", "*.gnupg*", "*.password-store*", "*.aws/*", "*.kube/*", "*.env*",
+        "*.netrc*", "*.git-credentials*", "*.npmrc*", "*.pypirc*", "*auth.json*", "*credentials*", "*id_rsa*", "*id_ed25519*",
+        "*.pem*", "*.key*", "*keyrings*"]
     readonly property var opencodeRules: {
-        const rules = [{ action: "*", resource: "*", effect: settings.agentAuto ? "allow" : "ask" }]
-        if (!settings.agentAuto) {
-            rules.push({ action: "question", resource: "*", effect: "allow" })
-            for (const action of ["glob", "grep", "list", "read"]) rules.push({ action, resource: "*", effect: "allow" })
-            rules.push({ action: "external_directory", resource: "*", effect: "ask" })
-            if (settings.agentWeb) {
-                for (const action of ["webfetch", "websearch", "codesearch"])
-                    rules.push({ action, resource: "*", effect: "allow" })
-            }
+        const read = { "*": "allow" }
+        for (const f of secretFiles) read[f] = "deny"
+        read["*.env.example"] = "allow"
+        if (settings.agentAuto) {
+            const shell = { "*": "allow" }
+            for (const c of secretCommands) shell[c] = "ask"
+            return { "*": "allow", question: "deny", read: read, bash: shell }
         }
-        for (const resource of ["*.env", "*.env.*", "*/.ssh/*", "*/.gnupg/*", "*/.password-store/*",
-            "*/.aws/*", "*/.kube/*", "*/.docker/config.json", "*/.netrc", "*/.git-credentials",
-            "*/.local/share/opencode/auth.json", "*.pem", "*.key"])
-            rules.push({ action: "read", resource, effect: "deny" })
-        rules.push({ action: "read", resource: "*.env.example", effect: "allow" })
+        const rules = { "*": "ask", question: "deny", glob: "allow", grep: "allow", list: "allow", lsp: "allow",
+            todowrite: "allow", todoread: "allow", read: read, external_directory: "ask" }
+        if (settings.agentWeb) { rules.webfetch = "allow"; rules.websearch = "allow"; rules.codesearch = "allow" }
         return rules
     }
-    // OpenCode appends agent-specific policy after global rules, so set both built-in agents too.
+    // opencode adds an agent's own rules after the general ones, so an opencode.json or .opencode folder in
+    // the work folder (a repository you cloned, say) could otherwise give its build agent everything back
     readonly property string opencodeConfig: JSON.stringify({
-        permissions: opencodeRules,
-        agents: { build: { permissions: opencodeRules }, plan: { permissions: opencodeRules } }
+        permission: opencodeRules,
+        agent: { build: { permission: opencodeRules }, plan: { permission: opencodeRules } }
     })
 
     // 1. which window is active, 2. which folder it is in, 3. ask
@@ -1277,6 +1290,13 @@ Item {
             if (chunk) { reply += chunk; reply = reply.slice(-6000) }
             return
         }
+        if (approvalProtocol && e && e.pawmpt === "activity") { note(clean(String(e.text || "")).slice(0, 200)); return }
+        if (approvalProtocol && e && e.pawmpt === "usage") {
+            const n = Number(e.tokens) || 0
+            if (n > 0) usage = n.toLocaleString() + " tokens" + (Number(e.cost) > 0 ? " · $" + Number(e.cost).toFixed(4) : "")
+            return
+        }
+        if (approvalProtocol && e && e.pawmpt === "error") { errText = clean(String(e.text || "")).slice(0, 800); return }
         if (approvalProtocol && e && e.pawmpt === "session") {
             const id = String(e.id || "")
             // Only OpenCode sessions are resumed through this slot. Codex thread IDs
@@ -1287,7 +1307,7 @@ Item {
         if (approvalProtocol && e && e.pawmpt === "permission") {
             queueApproval({ id: String(e.id || ""), title: String(e.title || "Permission needed"),
                 detail: String(e.detail || ""), adapter: "custom",
-                allowAll: settings.agent === "claude" || (settings.agent === "codex" && e.allowAll === true) })
+                allowAll: e.allowAll === true })
             return
         }
         if (!jsonMode) { rawOut += line + "\n"; reply = clean(rawOut).slice(-6000); return }
@@ -1315,26 +1335,45 @@ Item {
             errText = String((er.data && er.data.message) || er.message || er.name || "error")
         }
     }
+    // What a permission card shows comes from the agent, and in the end from whatever it read. So it
+    // is shown as plain text without the characters that can hide or reorder it (control characters,
+    // right-to-left overrides, zero-width ones), and what doesn't fit is said to be missing.
+    function approvalText(t, limit) {
+        t = clean(String(t || "")).replace(/\r\n?/g, "\n")
+            .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, "")
+            .replace(/\n{4,}/g, "\n\n\n")
+        if (t.length > limit) t = t.slice(0, limit) + "\n… and " + (t.length - limit) + " more characters that are not shown. Deny if you can't see what it does."
+        return t
+    }
+    readonly property int approvalMax: 12   // more waiting than this are turned down as they come
+    property double approvalShownAt: 0      // when the card you see appeared
+    onApprovalChanged: approvalShownAt = Date.now()
+    function sendApproval(id, allow, all) {
+        if (!(agent.running && approvalProtocol && agent.stdinEnabled)) return
+        const reply = { pawmpt: "permission_reply", id: id, allow: allow === true }
+        if (all) reply.allowAll = true
+        agent.write(JSON.stringify(reply) + "\n")
+    }
     function queueApproval(item) {
+        item.id = String(item.id || "").slice(0, 200)
         if (!item.id || approvalQueue.some((x) => x.id === item.id)) return
+        if (approvalQueue.length >= approvalMax) { sendApproval(item.id, false, false); return }
+        item.title = approvalText(item.title, 120).replace(/\n/g, " ") || "Permission needed"
+        item.detail = approvalText(item.detail, 2400)
         approvalQueue = approvalQueue.concat([item])
     }
     function answerApproval(allow, allowAll) {
         if (!approval) return
+        // a card that only just appeared, where Stop or the last card's button was: not a real answer yet
+        if (Date.now() - approvalShownAt < 400) return
         const pending = approval
-        const approveAll = allow === true && allowAll === true && pending.allowAll === true &&
-            (settings.agent === "claude" || settings.agent === "codex")
-        const toAnswer = approveAll ? approvalQueue : [pending]
-        approvalQueue = approveAll ? [] : approvalQueue.slice(1)
+        const approveAll = allow === true && allowAll === true && pending.allowAll === true
+        // Allow all answers the waiting ones that offered it too; one that names a key file didn't, and stays
+        const toAnswer = approveAll ? approvalQueue.filter((x) => x.allowAll === true) : [pending]
+        approvalQueue = approveAll ? approvalQueue.filter((x) => x.allowAll !== true) : approvalQueue.slice(1)
         // The bridge protocol is JSONL so the selected agent adapter can map this decision to
         // its own API (OpenCode, Claude Code, Codex, or a custom adapter).
-        if (agent.running && approvalProtocol && agent.stdinEnabled) {
-            for (let i = 0; i < toAnswer.length; i++) {
-                const reply = { pawmpt: "permission_reply", id: toAnswer[i].id, allow: allow === true }
-                if (approveAll && i === 0) reply.allowAll = true
-                agent.write(JSON.stringify(reply) + "\n")
-            }
-        }
+        for (let i = 0; i < toAnswer.length; i++) sendApproval(toAnswer[i].id, allow === true, approveAll && i === 0)
     }
     // Copying: wl-copy reads the text from stdin, so it is never in a command's arguments.
     property string copyQueue: ""
@@ -1364,7 +1403,7 @@ Item {
         onStarted: {
             if (root.approvalProtocol) {
                 agent.write(JSON.stringify({ pawmpt: "request", prompt: root.agentInput,
-                    question: root.lastQuestion,
+                    question: root.lastQuestion, secrets: root.secretFiles,
                     session: root.sessionId, model: root.settings.agentModel || "",
                     agent: root.settings.agentMode || "build", variant: root.settings.agentVariant || "" }) + "\n")
                 root.agentInput = ""
@@ -1408,6 +1447,7 @@ Item {
             else if (code === 0 && text) root.finish(true, text)
             else if (code === 0) root.finish(true, root.activity.length ? "Done." : "(no answer)")
             else if (code === 124 || code === 137) root.finish(false, (text ? text + "\n\n" : "") + "It took longer than " + root.settings.agentTimeout + " s, so it was stopped. Raise the limit in Settings › Agent.")
+            else if (code === 127 && text) root.finish(false, text)
             else if (code === 127) root.finish(false, "Agent not found: " + root.argvFor("")[0] + ". Install it or pick another agent in Settings › Agent.")
             else root.finish(false, (text ? text + "\n\n" : "") + (err.split("\n").slice(-6).join("\n") || ("The agent stopped with code " + code)).slice(0, 1200))
         }

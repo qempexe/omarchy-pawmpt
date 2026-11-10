@@ -459,7 +459,7 @@
           "custom"
         ],
         "defaultValue": "opencode",
-        "description": "Who answers. Install the selected agent first. Claude Code and Codex use their native approval flows."
+        "description": "Who answers. Install the selected agent first. Claude Code and Codex ask in the bubble before they run a command or change a file, and can't read the files that hold keys and passwords."
       },
       {
         "key": "agentModel",
@@ -511,14 +511,14 @@
         "type": "boolean",
         "label": "Let it act",
         "defaultValue": false,
-        "description": "Automatically approves OpenCode actions, while still blocking reads of known credential files. Off: actions that need permission appear here with Allow once and Deny buttons. This is an agent permission policy, not an operating system sandbox."
+        "description": "On, opencode does everything without asking. Off, it reads and searches on its own, and anything else (a command, an edit, the web) waits for Allow once or Deny in the bubble. Keys and passwords stay out of reach either way. These are opencode's own rules, not a sandbox."
       },
       {
         "key": "agentWeb",
         "type": "boolean",
         "label": "Look things up online",
         "defaultValue": false,
-        "description": "Allows opencode's web search and page tools while Let it act is off. Prompts and page requests can send data to online services."
+        "description": "With Let it act off, lets it search the web and open pages without asking first. What it sends there can include what it read."
       },
       {
         "key": "agentPrefix",

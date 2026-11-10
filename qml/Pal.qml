@@ -56,6 +56,8 @@ Scope {
         function onReplySerialChanged() { root.wake(); root.bubbleOpen = true; if (root.cfg.bubbleSeconds > 0) bubbleTimer.restart() }
         function onBusyChanged() { if (root.svc.busy) { root.wake(); root.bubbleOpen = true; root.promptOpen = false } }
         function onVoiceStateChanged() { if (root.svc.voiceState !== "idle") { root.wake(); root.bubbleOpen = true } }
+        // a request for permission is always shown: the agent waits for Allow or Deny
+        function onApprovalChanged() { if (root.svc.approval) { root.wake(); root.svc.shown = true; root.menuOpen = false; root.bubbleOpen = true } }
     }
     Timer { id: bubbleTimer; interval: Math.max(1, root.cfg.bubbleSeconds || 0) * 1000; onTriggered: if (!root.svc.busy) root.bubbleOpen = false }
 

@@ -1,20 +1,45 @@
 #!/usr/bin/env python3
-"""Pawmpt adapter for Codex's bidirectional app-server JSON-RPC protocol."""
+"""Run Codex with its approval requests answered in Pawmpt.
+
+Pawmpt writes one request line on stdin, then permission replies (see AGENT_APPROVAL_PROTOCOL.md).
+Codex runs as `codex app-server`, in a read-only sandbox that also can't read the files that hold
+keys and passwords: whatever needs more than that is asked for, and shown in Pawmpt.
+"""
 import json
 import os
 import queue
 import re
-import select
 import shutil
-import signal
 import subprocess
 import sys
 import threading
 import time
 
+from bridge_common import (Replies, clip, emit, mentions_secret, on_signals, read_request, secret_patterns,
+                           spawn, stop_tree)
 
-def emit(value):
-    print(json.dumps(value, ensure_ascii=False), flush=True)
+
+def permission_profile(patterns, home):
+    """A Codex permissions profile: read-only, and no reading of the key and password files at
+    all, not by a command either. Paths under your home are named outright, the rest as patterns
+    under the work folder."""
+    filesystem = {}
+    project = {}
+    for pattern in patterns:
+        if pattern.startswith("*/") and "*" not in pattern[2:].rstrip("*").rstrip("/"):
+            # "*/.ssh/*" and "*/.netrc": the one in your home
+            path = os.path.join(home, pattern[2:].rstrip("*").rstrip("/"))
+            if os.path.exists(path):
+                filesystem[path] = "none"
+        if pattern.startswith("*/"):
+            project["**/" + pattern[2:]] = "none"
+        elif pattern.startswith("*"):
+            project["**/" + pattern] = "none"
+    if project:
+        filesystem[":project_roots"] = project
+    filesystem["glob_scan_max_depth"] = 4
+    return {"default_permissions": "pawmpt",
+            "permissions": {"pawmpt": {"extends": ":read-only", "filesystem": filesystem}}}
 
 
 def desktop_launch(question, answer):
@@ -38,23 +63,28 @@ def desktop_launch(question, answer):
 
 
 def main():
-    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(143)))
-    signal.signal(signal.SIGINT, lambda *_: (_ for _ in ()).throw(SystemExit(130)))
-    first = sys.stdin.readline()
+    on_signals()
     try:
-        request = json.loads(first)
+        request = read_request()
         prompt = request["prompt"]
         question = request.get("question", prompt)
     except Exception:
-        emit({"pawmpt": "text", "text": "Pawmpt: invalid bridge request"})
+        emit({"pawmpt": "text", "text": "Pawmpt: the request to the Codex bridge could not be read."})
         return 2
+    patterns = secret_patterns(request)
+    cwd = os.getcwd()
 
-    child = subprocess.Popen(["codex", "app-server", "--listen", "stdio://"],
-                             cwd=os.getcwd(), stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             text=True, bufsize=1)
+    try:
+        child = spawn(["codex", "app-server", "--listen", "stdio://"],
+                      cwd=cwd, stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                      text=True, bufsize=1)
+    except FileNotFoundError:
+        emit({"pawmpt": "text", "text": "Codex is not installed, or not on the PATH. Install it, or pick another agent in Settings › Agent."})
+        return 127
     incoming = queue.Queue()
-    pending = {}
+    pending = {}             # request id -> (id as Codex gave it, the request, names a key file)
+    denied = []
 
     def reader():
         for raw in child.stdout:
@@ -92,13 +122,37 @@ def main():
         child.stdin.write(json.dumps({"id": rid, "result": result}) + "\n")
         child.stdin.flush()
 
+    def describe(method, p):
+        """(detail, names a key file) for one approval request."""
+        command = p.get("command")
+        if isinstance(command, list):
+            command = " ".join(str(c) for c in command)
+        lines = []
+        if command:
+            lines.append(str(command))
+        if p.get("reason"):
+            lines.append("# " + str(p["reason"]))
+        if method == "item/permissions/requestApproval" and p.get("permissions"):
+            lines.append(json.dumps(p["permissions"], ensure_ascii=False, indent=2))
+        if method == "item/fileChange/requestApproval" and p.get("grantRoot"):
+            lines.append("Write access to: " + str(p["grantRoot"]))
+        if p.get("cwd") and command:
+            lines.append("in " + str(p["cwd"]))
+        detail = "\n".join(lines) or "Codex asks for permission."
+        risky = mentions_secret(detail, patterns, cwd)
+        if risky:
+            detail = "This names a file that holds keys or passwords.\n" + detail
+        return detail, risky
+
+    replies = Replies()
     try:
         init_id = send("initialize", {"clientInfo": {"name": "pawmpt", "title": "Pawmpt", "version": "1.0"}})
-        ready = False
         thread_id = None
         turn_started = False
         assistant_text = ""
         allow_all = False
+        legacy = False           # a Codex without permission profiles: read-only sandbox only
+        said = False
         host_launch_id = "pawmpt-host-desktop-launch"
         while child.poll() is None:
             try:
@@ -111,106 +165,156 @@ def main():
                     return 1
                 break
         notify("initialized")
-        thread_req = send("thread/start", {"cwd": os.getcwd(), "approvalPolicy": "on-request",
-                                             "sandbox": "workspace-write"})
-        while child.poll() is None:
+        # Read-only, so editing files and running commands that change things ask first, through
+        # the approval requests below; and the key and password files can't be read at all.
+        thread_req = send("thread/start", {"cwd": cwd, "approvalPolicy": "on-request",
+                                             "config": permission_profile(patterns, os.path.expanduser("~"))})
+        ending = False
+        completed = False
+        while child.poll() is None and not ending:
             try:
                 msg = incoming.get(timeout=0.1)
             except queue.Empty:
                 msg = None
             if msg:
-                if msg.get("id") == thread_req and "result" in msg:
+                if msg.get("id") == thread_req and "error" in msg and not legacy:
+                    # an older Codex that doesn't know permission profiles: its read-only sandbox
+                    legacy = True
+                    emit({"pawmpt": "activity", "text": "This Codex is too old to keep key files from its commands; update it"})
+                    thread_req = send("thread/start", {"cwd": cwd, "approvalPolicy": "on-request", "sandbox": "read-only"})
+                elif msg.get("id") == thread_req and "error" in msg:
+                    err = msg["error"]
+                    emit({"pawmpt": "error", "text": "Codex: " + str(err.get("message") if isinstance(err, dict) else err)[:800]})
+                    break
+                elif msg.get("id") == thread_req and "result" in msg:
                     thread_id = (msg.get("result", {}).get("thread") or {}).get("id")
                     if thread_id:
                         emit({"pawmpt": "session", "id": thread_id})
-                        send("turn/start", {"threadId": thread_id, "input": [{"type": "text", "text": prompt}],
-                                             "cwd": os.getcwd(), "approvalPolicy": "on-request",
-                                             "sandboxPolicy": {"type": "workspaceWrite"}})
+                        turn = {"threadId": thread_id, "input": [{"type": "text", "text": prompt}],
+                                "cwd": cwd, "approvalPolicy": "on-request"}
+                        if legacy:
+                            turn["sandboxPolicy"] = {"type": "readOnly"}
+                        send("turn/start", turn)
                         turn_started = True
                 elif isinstance(msg.get("method"), str):
                     method = msg["method"]
                     p = msg.get("params") or {}
+                    if not isinstance(p, dict):
+                        p = {}
                     if method == "item/agentMessage/delta":
                         delta = str(p.get("delta", ""))
                         assistant_text = (assistant_text + delta)[-12000:]
-                        emit({"pawmpt": "text", "text": delta})
+                        if delta:
+                            said = True
+                            emit({"pawmpt": "text", "text": delta})
                     elif method in ("item/commandExecution/requestApproval", "item/fileChange/requestApproval",
                                     "item/permissions/requestApproval"):
                         rid = msg.get("id")
                         req = {"method": method, "params": p}
-                        if allow_all:
+                        detail, risky = describe(method, p)
+                        # a request that names a key file is always asked on its own
+                        if allow_all and not risky:
                             answer_approval(rid, req, True)
                         else:
-                            pending[rid] = req
-                            detail = p.get("command") or p.get("reason") or p.get("cwd") or "The agent requests permission."
-                            emit({"pawmpt": "permission", "id": str(rid), "title": "Codex needs permission", "detail": str(detail), "allowAll": True})
+                            pending[str(rid)] = (rid, req, risky)
+                            what = {"item/commandExecution/requestApproval": "run a command",
+                                    "item/fileChange/requestApproval": "change files"}.get(method, "have more access")
+                            emit({"pawmpt": "permission", "id": str(rid), "title": "Codex wants to " + what,
+                                  "detail": clip(detail), "allowAll": not risky})
+                    elif method == "item/started":
+                        item = p.get("item") if isinstance(p.get("item"), dict) else {}
+                        if item.get("type") == "commandExecution" and item.get("command"):
+                            command = item["command"]
+                            if isinstance(command, list):
+                                command = " ".join(str(c) for c in command)
+                            emit({"pawmpt": "activity", "text": ("› shell: " + str(command).split("\n")[0])[:120]})
+                        elif item.get("type") in ("fileChange", "webSearch", "mcpToolCall"):
+                            emit({"pawmpt": "activity", "text": "› " + str(item.get("type"))})
+                    elif method == "thread/tokenUsage/updated":
+                        total = ((p.get("tokenUsage") or {}).get("total") or {}) if isinstance(p.get("tokenUsage"), dict) else {}
+                        tokens = int(total.get("totalTokens") or 0) if isinstance(total, dict) else 0
+                        if tokens > 0:
+                            emit({"pawmpt": "usage", "tokens": tokens, "cost": 0})
+                    elif method == "error" and not p.get("willRetry"):
+                        err = p.get("error") or {}
+                        emit({"pawmpt": "error", "text": str(err.get("message") if isinstance(err, dict) else err)[:800]})
+                    elif "id" in msg:
+                        # a request Pawmpt has no answer for (a question back to you, an MCP form): turn it
+                        # down, so the run goes on instead of waiting for a reply that never comes
+                        child.stdin.write(json.dumps({"id": msg["id"], "error": {"code": -32601, "message": "Pawmpt can't answer " + method}}) + "\n")
+                        child.stdin.flush()
                     elif method == "turn/completed":
+                        turn = p.get("turn") or {}
+                        if turn.get("status") == "failed":
+                            terr = turn.get("error") or {}
+                            emit({"pawmpt": "error", "text": str(terr.get("message") if isinstance(terr, dict) else terr or "Codex stopped with an error.")[:800]})
                         launch = desktop_launch(question, assistant_text)
                         if launch:
                             app_name, argv = launch
-                            pending[host_launch_id] = {"method": "pawmpt/hostLaunch", "app": app_name, "argv": argv}
+                            pending[host_launch_id] = (host_launch_id, {"method": "pawmpt/hostLaunch", "app": app_name, "argv": argv}, True)
                             emit({
                                 "pawmpt": "permission", "id": host_launch_id,
                                 "title": "Open app from desktop session?",
                                 "detail": "Codex could not reach the display from its sandbox. Allow once to start " + app_name.title() + " directly in your Omarchy session. Only this app will be started; Codex will not be rerun with broader access.",
                             })
                         else:
+                            completed = True
                             break
-            ready, _, _ = select.select([sys.stdin], [], [], 0)
-            if ready:
-                line = sys.stdin.readline()
-                if not line:
+                if not turn_started and msg.get("error") and msg.get("id") != thread_req:
+                    emit({"pawmpt": "text", "text": "Codex app-server: " + str(msg["error"].get("message", "startup failed"))})
                     break
+            # every reply that has come in, in order: two clicks in a row are two lines
+            while True:
                 try:
-                    answer = json.loads(line)
-                except Exception:
+                    answer = replies.get(timeout=0)
+                except EOFError:
+                    return 143   # Pawmpt went away: stop Codex too
+                if answer is None:
+                    break
+                if answer.get("pawmpt") != "permission_reply":
                     continue
-                if answer.get("pawmpt") == "permission_reply":
-                    rid = answer.get("id")
-                    if rid is not None:
+                entry = pending.pop(str(answer.get("id", "")), None)
+                if entry is None:
+                    continue     # not something that was asked, or answered already
+                rid, req, _risky = entry
+                allowed = answer.get("allow") is True
+                if req.get("method") == "pawmpt/hostLaunch":
+                    if allowed:
                         try:
-                            rid = int(rid)
-                        except Exception:
-                            pass
-                        req = pending.pop(rid, {})
-                        if req.get("method") == "pawmpt/hostLaunch":
-                            if answer.get("allow"):
-                                try:
-                                    child_app = subprocess.Popen(
-                                        req["argv"], cwd=os.getcwd(), start_new_session=True,
-                                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL,
-                                    )
-                                    time.sleep(0.8)
-                                    status = child_app.poll()
-                                    if status is not None and status != 0:
-                                        emit({"pawmpt": "text", "text": "\n\n" + req["app"].title() + " exited from the desktop session with code " + str(status) + "."})
-                                    else:
-                                        emit({"pawmpt": "text", "text": "\n\nPawmpt started " + req["app"].title() + " from the desktop session (PID " + str(child_app.pid) + ")."})
-                                except Exception as exc:
-                                    emit({"pawmpt": "text", "text": "\n\nPawmpt could not start " + req["app"].title() + " from the desktop session: " + str(exc)})
+                            child_app = subprocess.Popen(
+                                req["argv"], cwd=cwd, start_new_session=True,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            time.sleep(0.8)
+                            status = child_app.poll()
+                            if status is not None and status != 0:
+                                emit({"pawmpt": "text", "text": "\n\n" + req["app"].title() + " exited from the desktop session with code " + str(status) + "."})
                             else:
-                                emit({"pawmpt": "text", "text": "\n\nPawmpt did not start the app."})
-                            break
-                        elif req.get("method") == "item/permissions/requestApproval":
-                            allowed = answer.get("allow") is True
-                            if allowed and answer.get("allowAll") is True:
-                                allow_all = True
-                            answer_approval(rid, req, allowed)
-                        else:
-                            allowed = answer.get("allow") is True
-                            if allowed and answer.get("allowAll") is True:
-                                allow_all = True
-                            answer_approval(rid, req, allowed)
-            if not turn_started and msg and msg.get("error"):
-                emit({"pawmpt": "text", "text": "Codex app-server: " + str(msg["error"].get("message", "startup failed"))})
-                break
-        if child.poll() is None:
-            child.terminate()
-        return child.wait(timeout=3)
+                                emit({"pawmpt": "text", "text": "\n\nPawmpt started " + req["app"].title() + " from the desktop session."})
+                        except Exception as exc:
+                            emit({"pawmpt": "text", "text": "\n\nPawmpt could not start " + req["app"].title() + " from the desktop session: " + str(exc)[:200]})
+                    else:
+                        emit({"pawmpt": "text", "text": "\n\nPawmpt did not start the app."})
+                    ending = completed = True
+                    break
+                if allowed and answer.get("allowAll") is True:
+                    allow_all = True
+                    # and the ones already waiting, except those that name a key file
+                    for key in [k for k, (_r, _q, risky) in pending.items() if not risky and k != host_launch_id]:
+                        other_rid, other_req, _ = pending.pop(key)
+                        answer_approval(other_rid, other_req, True)
+                if not allowed:
+                    denied.append("that")
+                answer_approval(rid, req, allowed)
+        if not completed and child.poll() is not None:
+            emit({"pawmpt": "error", "text": "Codex stopped before it answered (exit code %s)." % child.poll()})
+            return 1
+        if denied and not said:
+            emit({"pawmpt": "text", "text": "Stopped: you denied what Codex asked for."})
+        return 0
     finally:
-        if child.poll() is None:
-            child.terminate()
+        stop_tree(child)
 
 
 if __name__ == "__main__":

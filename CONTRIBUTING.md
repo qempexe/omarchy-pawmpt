@@ -29,6 +29,8 @@ node tests/test_manifest.js    # manifest.json against the code
 node tests/test_prompt.js      # what is sent to the agent
 node tests/test_voice.js       # voice input
 node tests/test_glow.js        # the glow
+node tests/test_bridges.js     # the agent bridges in tools/
+python3 tests/test_bridge_common.py   # what the bridges share: key files, replies, stopping the agent
 ```
 
 ## Style

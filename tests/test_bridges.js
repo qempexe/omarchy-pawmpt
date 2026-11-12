@@ -18,5 +18,17 @@ for (const [bridge, name] of [["opencode_bridge.py", "opencode"], ["claude_bridg
     r = run(bridge, "not json\n");
     ok(r.status === 2 && !String(r.stderr).includes("Traceback"), bridge + ": a request it can't read is exit 2, without a traceback");
 }
+// opencode's rules in Service.qml: a search reads every file under its folder, hidden ones included,
+// and opencode checks it apart from reading, so it always goes to the bridge, which checks the folder
+const service = fs.readFileSync(path.join(__dirname, "..", "qml", "Service.qml"), "utf8");
+const rules = service.slice(service.indexOf("readonly property var opencodeRules"), service.indexOf("readonly property string opencodeConfig"));
+ok((rules.match(/grep: "ask"/g) || []).length === 2 && !/grep: "allow"/.test(rules), "opencode: a search asks the bridge, with Let it act off and on");
+ok((rules.match(/lsp: "ask"/g) || []).length === 2 && !/lsp: "allow"/.test(rules), "opencode: so does the language server");
+const config = service.slice(service.indexOf("readonly property string opencodeConfig"), service.indexOf("readonly property string opencodeConfig") + 600);
+ok(["build", "plan", "general", "explore"].every((a) => config.includes(a + ": { permission: opencodeRules }")),
+    "opencode: the rules are set for the agents it starts too");
+const bridgeSrc = fs.readFileSync(path.join(tools, "opencode_bridge.py"), "utf8");
+ok(/action in \("grep", "lsp"\)/.test(bridgeSrc) && bridgeSrc.includes("search_reaches_secret("), "opencode bridge: decides a search by the folder");
+ok(bridgeSrc.includes("family") && bridgeSrc.includes("parentID"), "opencode bridge: answers the agents a run starts");
 console.log(fails ? fails + " failed" : "All good.");
 process.exit(fails ? 1 : 0);

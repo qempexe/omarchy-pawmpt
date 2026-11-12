@@ -217,17 +217,23 @@ def main():
             except Exception as exc:
                 prompt_error.append(exc)
 
+        # the sessions of this run: this one, and those of the agents it starts, whose permission
+        # requests and questions are answered here too (left alone, they wait for ever)
+        family = {session_id}
+        asked_in = {}            # permission id -> its session
+
         def reply_permission(pid, allow):
             decision = "once" if allow else "reject"
             if v2:
-                api("POST", "/api/session/" + sid + "/permission/" + q(pid, safe="") + "/reply", {"decision": decision})
+                where = q(asked_in.get(pid, session_id), safe="")
+                api("POST", "/api/session/" + where + "/permission/" + q(pid, safe="") + "/reply", {"decision": decision})
             else:
                 api("POST", "/permission/" + q(pid, safe="") + "/reply", {"reply": decision})
 
-        def reject_question(qid):
+        def reject_question(qid, where):
             try:
                 if v2:
-                    api("POST", "/api/session/" + sid + "/question/" + q(qid, safe="") + "/reject", {})
+                    api("POST", "/api/session/" + q(where, safe="") + "/question/" + q(qid, safe="") + "/reject", {})
                 else:
                     api("POST", "/question/" + q(qid, safe="") + "/reject", {})
             except Exception:
@@ -287,8 +293,17 @@ def main():
                 continue
             ev_session = str(data.get("sessionID") or (data.get("part") or {}).get("sessionID") or
                              (data.get("info") or {}).get("sessionID") or session_id)
-            if ev_session != session_id:
+            if kind == "session.created":
+                info = data.get("info") if isinstance(data.get("info"), dict) else data
+                child = str(info.get("id") or data.get("sessionID") or "")
+                if str(info.get("parentID") or data.get("parentID") or "") in family and SESSION_ID.match(child):
+                    family.add(child)
                 continue
+            if ev_session != session_id:
+                # an agent this run started: only what needs an answer
+                if ev_session not in family or kind not in ("permission.asked", "permission.v2.asked",
+                                                            "question.asked", "question.v2.asked"):
+                    continue
             status = data.get("status", {}) or {}
             if kind == "session.execution.started" or (kind == "session.status" and isinstance(status, dict) and status.get("type") == "busy"):
                 busy = True
@@ -326,6 +341,7 @@ def main():
                 action = perm.get("action") or (raw if isinstance(raw, str) else "") or perm.get("permission") or "an action"
                 if pid and pid not in asked:
                     asked.add(pid)
+                    asked_in[pid] = ev_session
                     asked_what[pid] = str(action)
                     resources = [str(x) for x in (perm.get("resources") or data.get("patterns") or [])]
                     meta = data.get("metadata") or {}
@@ -344,7 +360,7 @@ def main():
             elif kind in ("question.asked", "question.v2.asked"):
                 qid = str(data.get("id") or "")
                 if qid:
-                    reject_question(qid)
+                    reject_question(qid, ev_session)
             elif kind == "message.part.updated":
                 part = data.get("part", {}) or {}
                 pid = str(part.get("id", ""))

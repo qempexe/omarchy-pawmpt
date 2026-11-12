@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.qempexe.pawmpt",
   "name": "Pawmpt",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "qempexe",
   "license": "MIT",
   "description": "A little pal that lives on your desktop: pick a character or add your own, dress it in skins, and ask it things through an agent you choose.",

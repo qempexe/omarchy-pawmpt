@@ -4,6 +4,27 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-11-12
+
+### Security
+
+- opencode could read a file that holds keys or passwords through a search: a search
+  reads every file under its folder, hidden ones too, and opencode checks it apart from
+  reading, so the rules that keep those files from being read didn't cover it. With the
+  home folder as the work folder, a search could return `~/.ssh` keys, and in a project
+  the lines of its `.env` files, without asking. Every search now goes to Pawmpt first,
+  with Let it act on too: it is let through when none of those files is in its folder and
+  turned down, with a reason, when one is. A folder too big to look through in time asks.
+  The language server is checked the same way, by its file.
+- The rules are set for the agents opencode starts (general, explore) as well, so an
+  `opencode.json` in the work folder can't widen them there.
+
+### Fixed
+
+- A permission request from an agent that opencode started for a question was never
+  shown, and the answer waited for ever. Those requests come to the bubble now, and
+  questions back from them are turned down.
+
 ## [1.1.1] - 2026-11-11
 
 ### Security
@@ -174,6 +195,7 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.1.2]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.6...v1.1.0
 [1.0.6]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.5...v1.0.6

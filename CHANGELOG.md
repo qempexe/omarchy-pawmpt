@@ -4,6 +4,21 @@ All notable changes to Pawmpt. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] - 2026-11-12
+
+### Security
+
+- opencode could read `~/.ssh` keys when the work folder is a git repository with them at
+  its top, such as a home folder kept in git: opencode matches its rules against the path
+  from that top folder, `.ssh/id_ed25519`, which `*/.ssh/*` doesn't match. Every rule is
+  now also set without its leading `*/`.
+- A search of a single file let through without asking could still read `~/.ssh` keys:
+  opencode 1 searches the whole folder a file, or a path that isn't there, is in, so a
+  search of `~/.bashrc` searched the home folder. That folder is what Pawmpt looks through
+  now, with links followed for the place searched.
+- Files with keys and passwords can't be changed by opencode either, with Let it act on
+  too: an edit reads the file first.
+
 ## [1.1.2] - 2026-11-12
 
 ### Security
@@ -195,6 +210,7 @@ All notable changes to Pawmpt. The format follows
 - ipc for showing, asking, quick actions, voice, characters, skins, things to wear and pals.
 - Checks: `node tools/check.js` and the tests in `tests/`.
 
+[1.1.3]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/qempexe/omarchy-pawmpt/compare/v1.0.6...v1.1.0

@@ -91,28 +91,39 @@ def mentions_secret(text, patterns=None, cwd=None):
 
 
 def search_reaches_secret(path, patterns=None, cwd=None, limit=20000, seconds=2.0):
-    """Could a search of everything under `path`, hidden files included, read one of the key and
-    password files? True or False, or None when the folder is too big to look through in time.
-    Links are not followed, as ripgrep doesn't follow them, but a link that points at such a file
-    or folder counts as one."""
+    """Could a search from `path`, hidden files included, read one of the key and password files?
+    True or False, or None when there are too many files to look through in time.
+
+    A folder is searched whole. For anything else, a file or a path that isn't there, opencode 1
+    searches the whole folder it is in (opencode 2 only the file, or nothing), so that folder is
+    what is looked through. Both the path as written and with its links followed count. Links
+    inside are not followed, as ripgrep doesn't follow them, but one that points at such a file or
+    folder counts as one. The .git folder is left out, as the search leaves it out."""
     cwd = cwd or os.getcwd()
     root = os.path.expanduser(str(path or "").strip() or cwd)
     if not os.path.isabs(root):
         root = os.path.join(cwd, root)
+    root = os.path.normpath(root)
     if is_secret_path(root, patterns, cwd):
         return True
-    if not os.path.isdir(root) or os.path.islink(root) and not os.path.isdir(os.path.realpath(root)):
-        return False
+    folders = []
+    for candidate in (root, os.path.realpath(root)):
+        folder = candidate if os.path.isdir(candidate) else os.path.dirname(candidate)
+        if folder not in folders:
+            folders.append(folder)
     deadline = time.monotonic() + seconds
     seen = 0
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        dirnames[:] = [d for d in dirnames if d != ".git"]
-        for name in dirnames + filenames:
-            seen += 1
-            if seen > limit or time.monotonic() > deadline:
-                return None
-            if is_secret_path(os.path.join(dirpath, name), patterns, cwd):
-                return True
+    for folder in folders:
+        if is_secret_path(folder, patterns, cwd):
+            return True
+        for dirpath, dirnames, filenames in os.walk(folder, followlinks=False):
+            dirnames[:] = [d for d in dirnames if d != ".git"]
+            for name in dirnames + filenames:
+                seen += 1
+                if seen > limit or time.monotonic() > deadline:
+                    return None
+                if is_secret_path(os.path.join(dirpath, name), patterns, cwd):
+                    return True
     return False
 
 

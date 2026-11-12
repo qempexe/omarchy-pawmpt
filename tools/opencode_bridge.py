@@ -372,8 +372,9 @@ def main():
                                 activity("✗ " + str(action) + ": it would read files with keys or passwords, not allowed")
                                 # turned down with a reason, so the agent goes on another way
                                 reply_permission(pid, False, KEPT_OUT + " " + (
-                                    "This folder holds some, and a search reads every file in it. Search a folder "
-                                    "without them, or read the files you need one by one." if action == "grep" else
+                                    "This search could read some: it reads every file in its folder, and searching "
+                                    "a file reads the whole folder the file is in. Search a folder without them, or "
+                                    "read the files you need one by one." if action == "grep" else
                                     "This file is one of them."))
                             else:
                                 reply_permission(pid, True)
@@ -388,7 +389,8 @@ def main():
                         lines.append(", ".join(resources))
                     if action == "grep":
                         lines.append("In " + str(meta.get("path") or cwd) + ": too many files for Pawmpt to check, and a "
-                                     "search reads them all, hidden ones too. Deny if keys or passwords may be in there.")
+                                     "search reads them all, hidden ones too (for a file, all of the folder it is in). "
+                                     "Deny if keys or passwords may be in there.")
                     detail = "\n".join(lines) or json.dumps(meta, ensure_ascii=False)
                     emit({"pawmpt": "permission", "id": pid,
                           "title": "opencode wants to " + ACTIONS.get(str(action), "use " + str(action)[:60]),

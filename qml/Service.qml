@@ -1103,17 +1103,32 @@ Item {
     // from reading, so the read rules don't cover it: it always goes to the bridge, which lets it
     // through without a card when no key or password file is under that folder and turns it down
     // when one is. The language server (lsp) the same way, by the file it is asked about.
+    // opencode matches a file rule against the path from the project's top folder (a git repository's),
+    // so "*/.ssh/*" alone misses ".ssh/id_ed25519" when that folder is your home folder: every rule that
+    // starts with "*/" is also set without it. Files with keys and passwords can't be changed either,
+    // as an edit reads the file first.
+    readonly property var secretRules: {
+        const out = []
+        for (const f of secretFiles) {
+            out.push(f)
+            if (f.startsWith("*/")) out.push(f.slice(2))
+        }
+        return out
+    }
     readonly property var opencodeRules: {
         const read = { "*": "allow" }
-        for (const f of secretFiles) read[f] = "deny"
+        for (const f of secretRules) read[f] = "deny"
         read["*.env.example"] = "allow"
+        const edit = { "*": settings.agentAuto ? "allow" : "ask" }
+        for (const f of secretRules) edit[f] = "deny"
+        edit["*.env.example"] = edit["*"]
         if (settings.agentAuto) {
             const shell = { "*": "allow" }
             for (const c of secretCommands) shell[c] = "ask"
-            return { "*": "allow", question: "deny", read: read, bash: shell, grep: "ask", lsp: "ask" }
+            return { "*": "allow", question: "deny", read: read, edit: edit, bash: shell, grep: "ask", lsp: "ask" }
         }
         const rules = { "*": "ask", question: "deny", glob: "allow", grep: "ask", list: "allow", lsp: "ask",
-            todowrite: "allow", todoread: "allow", read: read, external_directory: "ask" }
+            todowrite: "allow", todoread: "allow", read: read, edit: edit, external_directory: "ask" }
         if (settings.agentWeb) { rules.webfetch = "allow"; rules.websearch = "allow"; rules.codesearch = "allow" }
         return rules
     }

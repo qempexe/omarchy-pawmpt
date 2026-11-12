@@ -22,15 +22,19 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from bridge_common import Replies, clip, emit, on_signals, read_request, spawn, stop_tree
+from bridge_common import (Replies, clip, emit, is_secret_path, on_signals, read_request, search_reaches_secret,
+                           secret_patterns, spawn, stop_tree)
 
 SESSION_ID = re.compile(r"^ses_[A-Za-z0-9_-]{1,128}$")
 # opencode's permission names, in words
 ACTIONS = {"bash": "run a command", "shell": "run a command", "execute": "run code", "edit": "edit files",
            "write": "write a file", "external_directory": "work outside the work folder", "webfetch": "open a web page",
            "websearch": "search the web", "codesearch": "search code online", "task": "start another agent",
-           "subagent": "start another agent", "skill": "use a skill", "read": "read a file", "doom_loop": "keep repeating itself"}
+           "subagent": "start another agent", "skill": "use a skill", "read": "read a file", "doom_loop": "keep repeating itself",
+           "grep": "search the files", "lsp": "ask the language server"}
 
+
+KEPT_OUT = "Pawmpt keeps files with keys and passwords out of reach."
 
 SAID = []
 
@@ -64,6 +68,8 @@ def main():
         model = str(request.get("model") or "").strip()
         agent = str(request.get("agent") or "build")
         variant = str(request.get("variant") or "").strip()
+        patterns = secret_patterns(request)
+        cwd = os.getcwd()
     except Exception:
         text("Pawmpt: the request to the opencode bridge could not be read.")
         return 2
@@ -222,13 +228,19 @@ def main():
         family = {session_id}
         asked_in = {}            # permission id -> its session
 
-        def reply_permission(pid, allow):
+        def reply_permission(pid, allow, why=None):
             decision = "once" if allow else "reject"
             if v2:
                 where = q(asked_in.get(pid, session_id), safe="")
-                api("POST", "/api/session/" + where + "/permission/" + q(pid, safe="") + "/reply", {"decision": decision})
+                body = {"decision": decision}
+                if why:
+                    body["message"] = why
+                api("POST", "/api/session/" + where + "/permission/" + q(pid, safe="") + "/reply", body)
             else:
-                api("POST", "/permission/" + q(pid, safe="") + "/reply", {"reply": decision})
+                body = {"reply": decision}
+                if why:
+                    body["message"] = why
+                api("POST", "/permission/" + q(pid, safe="") + "/reply", body)
 
         def reject_question(qid, where):
             try:
@@ -345,6 +357,27 @@ def main():
                     asked_what[pid] = str(action)
                     resources = [str(x) for x in (perm.get("resources") or data.get("patterns") or [])]
                     meta = data.get("metadata") or {}
+                    if not isinstance(meta, dict):
+                        meta = {}
+                    # A search reads every file under its folder, hidden ones included, and opencode
+                    # checks it apart from reading: it is let through without a card only when it
+                    # can't reach a key or password file, and turned down when it can.
+                    if action in ("grep", "lsp"):
+                        target = meta.get("path") if action == "grep" else meta.get("filePath")
+                        reaches = (search_reaches_secret(target, patterns, cwd) if action == "grep"
+                                   else bool(target) and is_secret_path(target, patterns, cwd))
+                        if reaches is not None:
+                            answered.add(pid)
+                            if reaches:
+                                activity("✗ " + str(action) + ": it would read files with keys or passwords, not allowed")
+                                # turned down with a reason, so the agent goes on another way
+                                reply_permission(pid, False, KEPT_OUT + " " + (
+                                    "This folder holds some, and a search reads every file in it. Search a folder "
+                                    "without them, or read the files you need one by one." if action == "grep" else
+                                    "This file is one of them."))
+                            else:
+                                reply_permission(pid, True)
+                            continue
                     command = meta.get("command") if isinstance(meta, dict) else None
                     lines = []
                     if action == "external_directory" and resources:
@@ -353,6 +386,9 @@ def main():
                         lines.append(str(command))
                     elif resources and action != "external_directory":
                         lines.append(", ".join(resources))
+                    if action == "grep":
+                        lines.append("In " + str(meta.get("path") or cwd) + ": too many files for Pawmpt to check, and a "
+                                     "search reads them all, hidden ones too. Deny if keys or passwords may be in there.")
                     detail = "\n".join(lines) or json.dumps(meta, ensure_ascii=False)
                     emit({"pawmpt": "permission", "id": pid,
                           "title": "opencode wants to " + ACTIONS.get(str(action), "use " + str(action)[:60]),

@@ -1099,6 +1099,10 @@ Item {
     readonly property var secretCommands: ["*.ssh/*", "*.gnupg*", "*.password-store*", "*.aws/*", "*.kube/*", "*.env*",
         "*.netrc*", "*.git-credentials*", "*.npmrc*", "*.pypirc*", "*auth.json*", "*credentials*", "*id_rsa*", "*id_ed25519*",
         "*.pem*", "*.key*", "*keyrings*"]
+    // A search (grep) reads every file under its folder, hidden ones too, and opencode checks it apart
+    // from reading, so the read rules don't cover it: it always goes to the bridge, which lets it
+    // through without a card when no key or password file is under that folder and turns it down
+    // when one is. The language server (lsp) the same way, by the file it is asked about.
     readonly property var opencodeRules: {
         const read = { "*": "allow" }
         for (const f of secretFiles) read[f] = "deny"
@@ -1106,18 +1110,20 @@ Item {
         if (settings.agentAuto) {
             const shell = { "*": "allow" }
             for (const c of secretCommands) shell[c] = "ask"
-            return { "*": "allow", question: "deny", read: read, bash: shell }
+            return { "*": "allow", question: "deny", read: read, bash: shell, grep: "ask", lsp: "ask" }
         }
-        const rules = { "*": "ask", question: "deny", glob: "allow", grep: "allow", list: "allow", lsp: "allow",
+        const rules = { "*": "ask", question: "deny", glob: "allow", grep: "ask", list: "allow", lsp: "ask",
             todowrite: "allow", todoread: "allow", read: read, external_directory: "ask" }
         if (settings.agentWeb) { rules.webfetch = "allow"; rules.websearch = "allow"; rules.codesearch = "allow" }
         return rules
     }
     // opencode adds an agent's own rules after the general ones, so an opencode.json or .opencode folder in
-    // the work folder (a repository you cloned, say) could otherwise give its build agent everything back
+    // the work folder (a repository you cloned, say) could otherwise give an agent everything back: the
+    // ones you talk to, and the ones they start (general, explore)
     readonly property string opencodeConfig: JSON.stringify({
         permission: opencodeRules,
-        agent: { build: { permission: opencodeRules }, plan: { permission: opencodeRules } }
+        agent: { build: { permission: opencodeRules }, plan: { permission: opencodeRules },
+            general: { permission: opencodeRules }, explore: { permission: opencodeRules } }
     })
 
     // 1. which window is active, 2. which folder it is in, 3. ask

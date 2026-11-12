@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 
 # Files that hold keys and passwords, as shell-style patterns on the whole path. Pawmpt
 # sends its own list with each request; this one is used when it doesn't.
@@ -85,6 +86,32 @@ def mentions_secret(text, patterns=None, cwd=None):
         for piece in re.split(r"[=:,;|&<>()`$\s]+", word):
             piece = piece.strip("'\"")
             if piece and is_secret_path(piece, patterns, cwd):
+                return True
+    return False
+
+
+def search_reaches_secret(path, patterns=None, cwd=None, limit=20000, seconds=2.0):
+    """Could a search of everything under `path`, hidden files included, read one of the key and
+    password files? True or False, or None when the folder is too big to look through in time.
+    Links are not followed, as ripgrep doesn't follow them, but a link that points at such a file
+    or folder counts as one."""
+    cwd = cwd or os.getcwd()
+    root = os.path.expanduser(str(path or "").strip() or cwd)
+    if not os.path.isabs(root):
+        root = os.path.join(cwd, root)
+    if is_secret_path(root, patterns, cwd):
+        return True
+    if not os.path.isdir(root) or os.path.islink(root) and not os.path.isdir(os.path.realpath(root)):
+        return False
+    deadline = time.monotonic() + seconds
+    seen = 0
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        for name in dirnames + filenames:
+            seen += 1
+            if seen > limit or time.monotonic() > deadline:
+                return None
+            if is_secret_path(os.path.join(dirpath, name), patterns, cwd):
                 return True
     return False
 
